@@ -1,0 +1,4 @@
+asr_model:
+  api_base_url: "https://api.openai.com/v1/" # or other compatible API base URL
+  api_key: "YOUR_API_KEY" # api key for the platform
+  model_name: "whisper-1" # or other compatible model
