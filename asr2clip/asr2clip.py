@@ -2,20 +2,17 @@
 
 import argparse
 import os
+import signal
 import sys
 import tempfile
-import signal
-import time
 
 import numpy as np
-from openai import OpenAI  # Updated import for OpenAI client
 import pyperclip
 import sounddevice as sd
 import yaml
+from openai import OpenAI
+from pydub import AudioSegment
 from scipy.io.wavfile import write
-
-import os
-import yaml
 
 
 def read_config(config_file):
@@ -116,17 +113,68 @@ def setup_signal_handlers():
     signal.signal(signal.SIGINT, signal_handler)
 
 
-def process_recording(fs, duration, api_key, api_base_url, model_name):
-    # Record audio based on the specified duration or continuously
-    recording = record_audio(fs, duration)
+def convert_audio_to_wav(input_source):
+    """Convert an audio file or raw audio data to WAV format."""
+    if isinstance(input_source, str) and os.path.isfile(input_source):
+        # Input is a file path
+        print(f"Reading audio file: {input_source}")
+        audio = AudioSegment.from_file(input_source)
+    else:
+        # Input is raw audio data (e.g., a temporary file or stdin data)
+        print("Converting raw audio data to WAV format...")
+        audio = AudioSegment.from_file(input_source, format="wav")
 
-    # Save to a temporary WAV file
-    with tempfile.NamedTemporaryFile(suffix=".wav") as tmpfile:
-        filename = tmpfile.name
-        save_audio(recording, fs, filename)
+    # Create a temporary file manually (without using the context manager)
+    tmpfile = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+    filename = tmpfile.name
+    tmpfile.close()  # Close the file so it can be used by other processes
 
+    # Export the audio to the temporary WAV file
+    audio.export(filename, format="wav")
+    return filename
+
+
+def process_recording(
+    fs, duration, api_key, api_base_url, model_name, use_stdin=False, input_file=None
+):
+    if use_stdin:
+        # Read audio data from stdin
+        print("Reading audio data from stdin...")
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmpfile:
+            filename = tmpfile.name
+            # Assuming the input is raw audio data, you may need to adjust this depending on the format
+            audio_data = sys.stdin.buffer.read()
+            with open(filename, "wb") as f:
+                f.write(audio_data)
+
+            # Convert to WAV format
+            wav_filename = convert_audio_to_wav(filename)
+            # Transcribe audio
+            transcript = transcribe_audio(
+                wav_filename, api_key, api_base_url, model_name
+            )
+            # Clean up the temporary file
+            os.remove(wav_filename)
+    elif input_file:
+        # Convert input file to WAV format
+        wav_filename = convert_audio_to_wav(input_file)
         # Transcribe audio
-        transcript = transcribe_audio(filename, api_key, api_base_url, model_name)
+        transcript = transcribe_audio(wav_filename, api_key, api_base_url, model_name)
+        # Clean up the temporary file
+        os.remove(wav_filename)
+    else:
+        # Record audio based on the specified duration or continuously
+        recording = record_audio(fs, duration)
+
+        # Save to a temporary WAV file
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmpfile:
+            filename = tmpfile.name
+            save_audio(recording, fs, filename)
+
+            # Transcribe audio
+            transcript = transcribe_audio(filename, api_key, api_base_url, model_name)
+            # Clean up the temporary file
+            os.remove(filename)
 
     # Copy to clipboard
     text = transcript.text
@@ -154,6 +202,18 @@ def main():
         default=None,
         help="Duration to record (seconds). If not specified, recording continues until Ctrl+C.",
     )
+    parser.add_argument(
+        "--stdin",
+        action="store_true",
+        help="Read audio data from stdin instead of recording.",
+    )
+    parser.add_argument(
+        "-i",
+        "--input",
+        type=str,
+        default=None,
+        help="Path to the input audio file to transcribe.",
+    )
 
     args = parser.parse_args()
 
@@ -178,7 +238,9 @@ def main():
     print("Press Ctrl+C again to exit the program.")
 
     # Process the recording
-    process_recording(fs, args.duration, api_key, api_base_url, model_name)
+    process_recording(
+        fs, args.duration, api_key, api_base_url, model_name, args.stdin, args.input
+    )
 
 
 if __name__ == "__main__":

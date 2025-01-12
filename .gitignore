@@ -172,3 +172,5 @@ cython_debug/
 
 # project specific
 asr2clip.conf
+# all audio/video files
+data/
