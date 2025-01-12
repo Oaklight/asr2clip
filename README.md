@@ -51,13 +51,12 @@ conda activate asr
 
 3. **Set up your API key**:
    - Create a `asr2clip.conf` file in the root directory of the project or in your `~/.config/` directory. A sample file [`asr2clip.conf.example`](asr2clip.conf.example) is provided.
-   - Add your API key to the `asr2clip.conf` file:
+   - Add your API key to the `asr2clip.conf` file in YAML format:
 
 ```yaml
-asr_model:
-  api_key: "your_api_key_here"
-  api_base_url: "https://api.openai.com/v1" # If you need to customize the API URL
-  model_name: "whisper-1" # Default model name
+api_key: your_api_key_here
+api_base_url: https://api.openai.com/v1
+model_name: whisper-1
 ```
 
 4. **Note for Linux users**:
@@ -84,9 +83,32 @@ asr2clip
 3. **Stop the tool**:
    - Press `Ctrl+C` to stop the tool.
 
+### Additional Options
+
+- **Transcribe from a file**:
+  You can transcribe an audio file directly by specifying the file path. The tool supports any audio format that `pydub` can handle (e.g., MP3, WAV, FLAC, AAC):
+
+```bash
+asr2clip --input /path/to/audio/file.mp3
+```
+
+- **Read audio data from stdin**:
+  You can also pipe audio data directly into the tool:
+
+```bash
+cat /path/to/audio/file.wav | asr2clip --stdin
+```
+
+- **Set recording duration**:
+  You can specify the duration of the recording in seconds:
+
+```bash
+asr2clip --duration 10
+```
+
 ## Configuration
 
-You can customize the tool by modifying the `config.yaml` file. For example, you can change the API endpoint, audio sampling rate, or other parameters depending on the API service you are using.
+You can customize the tool by modifying the `asr2clip.conf` file. For example, you can change the API endpoint, audio sampling rate, or other parameters depending on the API service you are using.
 
 ## Example
 

@@ -51,13 +51,12 @@ conda activate asr
 
 3. **设置 API 密钥**：
    - 在项目的根目录下或您的 `~/.config/` 目录中创建一个 `asr2clip.conf` 文件，已提供了一个示例文件 [`asr2clip.conf.example`](asr2clip.conf.example)。
-   - 将您的 API 密钥添加到 `asr2clip.conf` 文件中：
+   - 将您的 API 密钥添加到 `asr2clip.conf` 文件中（YAML 格式）：
 
 ```yaml
-asr_model:
-  api_key: "your_api_key_here"
-  api_base_url: "https://api.openai.com/v1" # 如果需要自定义 API 地址
-  model_name: "whisper-1" # 默认模型名称
+api_key: your_api_key_here
+api_base_url: https://api.openai.com/v1
+model_name: whisper-1
 ```
 
 4. **Linux 用户注意**：
@@ -84,9 +83,32 @@ asr2clip
 3. **停止工具**：
    - 按 `Ctrl+C` 停止工具。
 
+### 额外选项
+
+- **从文件转录**：
+  您可以通过指定文件路径直接转录音频文件。工具支持 `pydub` 支持的所有音频格式（如 MP3、WAV、FLAC、AAC 等）：
+
+```bash
+asr2clip --input /path/to/audio/file.mp3
+```
+
+- **从 stdin 读取音频数据**：
+  您也可以直接将音频数据通过管道输入工具：
+
+```bash
+cat /path/to/audio/file.wav | asr2clip --stdin
+```
+
+- **设置录音时长**：
+  您可以指定录音的时长（秒）：
+
+```bash
+asr2clip --duration 10
+```
+
 ## 配置
 
-您可以通过修改 `config.yaml` 文件来自定义工具。例如，您可以根据使用的 API 服务更改 API 端点、音频采样率或其他参数。
+您可以通过修改 `asr2clip.conf` 文件来自定义工具。例如，您可以根据使用的 API 服务更改 API 端点、音频采样率或其他参数。
 
 ## 示例
 

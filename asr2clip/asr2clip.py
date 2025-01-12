@@ -31,6 +31,8 @@ def read_config(config_file):
     try:
         with open(config_path, "r") as file:
             config = yaml.safe_load(file)
+            if "asr_model" in config and len(config) == 1:
+                return config["asr_model"]
             return config
     except Exception as e:
         print(f"Could not read configuration file {config_path}: {e}")
@@ -218,8 +220,7 @@ def main():
     args = parser.parse_args()
 
     # Read configuration
-    config = read_config(args.config)
-    asr_config = config.get("asr_model", {})
+    asr_config = read_config(args.config)
     api_key = asr_config.get("api_key", os.environ.get("OPENAI_API_KEY"))
     api_base_url = asr_config.get("api_base_url", "https://api.openai.com/v1")
     model_name = asr_config.get("model_name", "whisper-1")
