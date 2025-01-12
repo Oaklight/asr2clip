@@ -1,94 +1,94 @@
-# asr2clip 语音转文字剪贴板工具
+# asr2clip -- Speech-to-Text Clipboard Tool
 
-[English](README_en.md)
+[中文](README_zh.md)
 
-本工具旨在实时识别语音，将其转换为文字，并自动将文字复制到系统剪贴板。该工具利用 API 服务进行语音识别，并使用 Python 库进行音频捕获和剪贴板管理。
+This tool is designed to recognize speech in real-time, convert it to text, and automatically copy the text to the system clipboard. The tool leverages API services for speech recognition and uses Python libraries for audio capture and clipboard management.
 
-## 前置条件
+## Prerequisites
 
-在开始之前，请确保已准备好了以下内容：
+Before you begin, ensure you have the following ready:
 
-- **Python 3.8 或更高版本**：该工具是用 Python 编写的，因此您需要在系统上安装 Python。
-- **API 密钥**：您需要一个语音识别服务的 API 密钥（例如 **OpenAI/Whisper** API 或与之兼容的语音转文字 (ASR) API，如**FunAudioLLM/SenseVoiceSmall**，见[硅基流动siliconflow](https://siliconflow.cn/) 或 [xinference](https://inference.readthedocs.io/en/latest/)）。请确保您拥有必要的凭证。
+- **Python 3.8 or higher**: The tool is written in Python, so you'll need Python installed on your system.
+- **API Key**: You will need an API key from a speech recognition service (e.g., **OpenAI/Whisper** API or a compatible ASR API, such as **FunAudioLLM/SenseVoiceSmall** at [siliconflow](https://siliconflow.cn/) or [xinference](https://inference.readthedocs.io/en/latest/)). Make sure you have the necessary credentials.
 
-## 安装
+## Installation
 
-### 选项 1: 使用 pip 或 pipx 安装
+### Option 1: Install via pip or pipx
 
-您可以直接从 PyPI 使用 `pip` 或 `pipx` 安装 `asr2clip`：
+You can install `asr2clip` directly from PyPI using `pip` or `pipx`:
 
 ```bash
-# 使用 pip 安装
+# Install using pip
 pip install asr2clip
 
-# 或者使用 pipx 安装（推荐用于隔离环境）
+# Alternatively, install using pipx (recommended for isolated environments)
 pipx install asr2clip
 ```
 
-### 选项 2: 从源码安装
+### Option 2: Install from source
 
-1. **克隆仓库**（如果适用）：
+1. **Clone the repository** (if applicable):
 
 ```bash
 git clone https://github.com/Oaklight/asr2clip.git
 cd asr2clip
 ```
 
-2. **安装所需的 Python 包**：
+2. **Install the required Python packages**:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 选项 3: 使用 Conda 安装
+### Option 3: Install using Conda
 
-如果您使用 Conda，可以使用提供的 `environment.yaml` 文件创建环境：
+If you are using Conda, you can create an environment using the provided `environment.yaml` file:
 
 ```bash
 conda env create -f environment.yaml
 conda activate asr
 ```
 
-3. **设置 API 密钥**：
-   - 在项目的根目录下或您的 `~/.config/` 目录中创建一个 `asr2clip.conf` 文件，已提供了一个示例文件 [`asr2clip.conf.example`](asr2clip.conf.example)。
-   - 将您的 API 密钥添加到 `asr2clip.conf` 文件中：
+3. **Set up your API key**:
+   - Create a `asr2clip.conf` file in the root directory of the project or in your `~/.config/` directory. A sample file [`asr2clip.conf.example`](asr2clip.conf.example) is provided.
+   - Add your API key to the `asr2clip.conf` file:
 
 ```yaml
 asr_model:
   api_key: "your_api_key_here"
-  api_base_url: "https://api.openai.com/v1" # 如果需要自定义 API 地址
-  model_name: "whisper-1" # 默认模型名称
+  api_base_url: "https://api.openai.com/v1" # If you need to customize the API URL
+  model_name: "whisper-1" # Default model name
 ```
 
-4. **Linux 用户注意**：
-如果您在 Linux 上使用 `pyperclip` ，请确保安装了 `xclip` 或 `xsel` 。可以通过以下命令安装：
+4. **Note for Linux users**:
+If you are using `pyperclip` on Linux, make sure to install `xclip` or `xsel`. You can install them using the following commands:
 
 ```bash
-sudo apt-get install xsel # 基础剪贴板功能
-sudo apt-get install xclip # 功能更强
+sudo apt-get install xsel # Basic clipboard functionality
+sudo apt-get install xclip # More advanced functionality
 ```
 
-## 使用方法
+## Usage
 
-1. **运行工具**：
+1. **Run the tool**:
 
 ```bash
 asr2clip
 ```
 
-2. **开始说话**：
-   - 工具将开始从麦克风捕获音频。
-   - 它将音频发送到 API 进行语音识别。
-   - 识别出的文字将自动复制到系统剪贴板。
+2. **Start speaking**:
+   - The tool will start capturing audio from your microphone.
+   - It will send the audio to the API for speech recognition.
+   - The recognized text will be automatically copied to your system clipboard.
 
-3. **停止工具**：
-   - 按 `Ctrl+C` 停止工具。
+3. **Stop the tool**:
+   - Press `Ctrl+C` to stop the tool.
 
-## 配置
+## Configuration
 
-您可以通过修改 `config.yaml` 文件来自定义工具。例如，您可以根据使用的 API 服务更改 API 端点、音频采样率或其他参数。
+You can customize the tool by modifying the `config.yaml` file. For example, you can change the API endpoint, audio sampling rate, or other parameters depending on the API service you are using.
 
-## 示例
+## Example
 
 ```bash
 $ ./asr2clip.py --duration 5
@@ -97,20 +97,20 @@ Recording complete.
 Transcribing audio...
 Transcribed Text:
 -----------------
-1233211234567，这是一个中文测试。
+1,2,3,3,2,1. This is the English test.
 The transcribed text has been copied to the clipboard.
 ```
 
-## 故障排除
+## Troubleshooting
 
-- **音频未捕获**：确保您的麦克风已正确连接并配置。
-- **API 错误**：检查您的 API 密钥，并确保您有足够的额度或权限。
-- **剪贴板问题**：确保 `pyperclip` 已正确安装并与您的操作系统兼容。Linux 用户需要安装 `xclip` 或 `xsel`。
+- **Audio not captured**: Ensure your microphone is properly connected and configured.
+- **API errors**: Check your API key and ensure you have sufficient credits or permissions.
+- **Clipboard issues**: Ensure `pyperclip` is correctly installed and compatible with your operating system. Linux users need to install `xclip` or `xsel`.
 
-## 贡献
+## Contributing
 
-如果您想为此项目做出贡献，请 fork 仓库并提交 pull request。欢迎任何改进或新功能！
+If you would like to contribute to this project, please fork the repository and submit a pull request. We welcome any improvements or new features!
 
-## 许可证
+## License
 
-本项目采用 GNU Affero 通用公共许可证 v3.0。详情请参阅 [LICENSE](LICENSE) 文件。
+This project is licensed under the GNU Affero General Public License v3.0. See the [LICENSE](LICENSE) file for details.
