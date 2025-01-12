@@ -14,14 +14,29 @@ import sounddevice as sd
 import yaml
 from scipy.io.wavfile import write
 
+import os
+import yaml
+
 
 def read_config(config_file):
+    # Check if the config file exists in the repository root directory
+    if os.path.exists(config_file):
+        config_path = config_file
+    else:
+        # If not found, check the user's ~/.config/ directory
+        user_config_path = os.path.expanduser("~/.config/asr2clip.conf")
+        if os.path.exists(user_config_path):
+            config_path = user_config_path
+        else:
+            print(f"Configuration file not found: {config_file} or {user_config_path}")
+            sys.exit(1)
+
     try:
-        with open(config_file, "r") as file:
+        with open(config_path, "r") as file:
             config = yaml.safe_load(file)
             return config
     except Exception as e:
-        print(f"Could not read configuration file {config_file}: {e}")
+        print(f"Could not read configuration file {config_path}: {e}")
         sys.exit(1)
 
 
@@ -129,8 +144,8 @@ def main():
     parser.add_argument(
         "--config",
         type=str,
-        default="config.yaml",
-        help="Path to the configuration file. Default is 'config.yaml'.",
+        default="asr2clip.conf",
+        help="Path to the configuration file. Default is 'asr2clip.conf'.",
     )
     parser.add_argument(
         "-d",

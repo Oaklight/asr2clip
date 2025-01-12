@@ -13,6 +13,20 @@
 
 ## 安装
 
+### 选项 1: 使用 pip 或 pipx 安装
+
+您可以直接从 PyPI 使用 `pip` 或 `pipx` 安装 `asr2clip`：
+
+```bash
+# 使用 pip 安装
+pip install asr2clip
+
+# 或者使用 pipx 安装（推荐用于隔离环境）
+pipx install asr2clip
+```
+
+### 选项 2: 从源码安装
+
 1. **克隆仓库**（如果适用）：
 
 ```bash
@@ -26,9 +40,18 @@ cd asr2clip
 pip install -r requirements.txt
 ```
 
+### 选项 3: 使用 Conda 安装
+
+如果您使用 Conda，可以使用提供的 `environment.yaml` 文件创建环境：
+
+```bash
+conda env create -f environment.yaml
+conda activate asr
+```
+
 3. **设置 API 密钥**：
-   - 在项目的根目录下创建一个 `config.yaml` 文件，已提供了一个示例文件 [`config.example.yaml`](config.example.yaml)。
-   - 将您的 API 密钥添加到 `config.yaml` 文件中：
+   - 在项目的根目录下或您的 `~/.config/` 目录中创建一个 `asr2clip.conf` 文件，已提供了一个示例文件 [`asr2clip.conf.example`](asr2clip.conf.example)。
+   - 将您的 API 密钥添加到 `asr2clip.conf` 文件中：
 
 ```yaml
 asr_model:
@@ -38,7 +61,7 @@ asr_model:
 ```
 
 4. **Linux 用户注意**：
-如果您在 Linux 上使用 `pyperclip` ，请确保安装了 `xclip` 或 `xsel` 。可以通过以下命令安装
+如果您在 Linux 上使用 `pyperclip` ，请确保安装了 `xclip` 或 `xsel` 。可以通过以下命令安装：
 
 ```bash
 sudo apt-get install xsel # 基础剪贴板功能
@@ -50,17 +73,10 @@ sudo apt-get install xclip # 功能更强
 1. **运行工具**：
 
 ```bash
-python asr2clip.py
-```
-
-或者，如果您已经使脚本可执行（通过 `chmod +x asr2clip.py` ），可以直接运行：
-
-```bash
-./asr2clip.py
+asr2clip
 ```
 
 2. **开始说话**：
-
    - 工具将开始从麦克风捕获音频。
    - 它将音频发送到 API 进行语音识别。
    - 识别出的文字将自动复制到系统剪贴板。
@@ -97,4 +113,4 @@ The transcribed text has been copied to the clipboard.
 
 ## 许可证
 
-本项目采用 GNU Affero General Public License v3.0 许可证。有关更多详细信息，请参阅 `LICENSE` 文件。
+本项目采用 GNU Affero 通用公共许可证 v3.0。详情请参阅 [LICENSE](LICENSE) 文件。

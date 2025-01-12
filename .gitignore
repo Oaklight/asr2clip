@@ -171,4 +171,4 @@ cython_debug/
 .pypirc
 
 # project specific
-config.yaml
+asr2clip.conf

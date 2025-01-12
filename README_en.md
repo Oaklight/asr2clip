@@ -13,6 +13,20 @@ Before you begin, ensure you have the following ready:
 
 ## Installation
 
+### Option 1: Install via pip or pipx
+
+You can install `asr2clip` directly from PyPI using `pip` or `pipx`:
+
+```bash
+# Install using pip
+pip install asr2clip
+
+# Alternatively, install using pipx (recommended for isolated environments)
+pipx install asr2clip
+```
+
+### Option 2: Install from source
+
 1. **Clone the repository** (if applicable):
 
 ```bash
@@ -26,9 +40,18 @@ cd asr2clip
 pip install -r requirements.txt
 ```
 
+### Option 3: Install using Conda
+
+If you are using Conda, you can create an environment using the provided `environment.yaml` file:
+
+```bash
+conda env create -f environment.yaml
+conda activate asr
+```
+
 3. **Set up your API key**:
-   - Create a `config.yaml` file in the root directory of the project. A sample file [`config.example.yaml`](config.example.yaml) is provided.
-   - Add your API key to the `config.yaml` file:
+   - Create a `asr2clip.conf` file in the root directory of the project or in your `~/.config/` directory. A sample file [`asr2clip.conf.example`](asr2clip.conf.example) is provided.
+   - Add your API key to the `asr2clip.conf` file:
 
 ```yaml
 asr_model:
@@ -50,13 +73,7 @@ sudo apt-get install xclip # More advanced functionality
 1. **Run the tool**:
 
 ```bash
-python asr2clip.py
-```
-
-Alternatively, if you have made the script executable (`chmod +x asr2clip.py`), you can run it directly:
-
-```bash
-./asr2clip.py
+asr2clip
 ```
 
 2. **Start speaking**:
@@ -96,4 +113,4 @@ If you would like to contribute to this project, please fork the repository and 
 
 ## License
 
-This project is licensed under the GNU Affero General Public License v3.0. See the `LICENSE` file for more details.
+This project is licensed under the GNU Affero General Public License v3.0. See the [LICENSE](LICENSE) file for details.
