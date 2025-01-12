@@ -6,7 +6,7 @@ setup(
     author="Oaklight",
     author_email="oaklight@gmx.com",
     description="A real-time speech-to-text clipboard tool.",
-    long_description=open("README_en.md").read(),
+    long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
     url="https://github.com/Oaklight/asr2clip",
     packages=find_packages(),
