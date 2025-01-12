@@ -25,13 +25,16 @@ def read_config(config_file):
         sys.exit(1)
 
 
-def record_audio(fs):
-    print("Recording... Press Ctrl+C to stop.")
+def record_audio(fs, duration=None):
+    if duration:
+        print(f"Recording for {duration} seconds...")
+    else:
+        print("Recording indefinitely. Press Ctrl+C to stop.")
     try:
         # Initialize an empty list to store audio chunks
         audio_chunks = []
 
-        # Start recording in a loop until stop_recording is True
+        # Start recording in a loop until stop_recording is True or duration is reached
         with sd.InputStream(
             samplerate=fs,
             channels=1,
@@ -39,8 +42,12 @@ def record_audio(fs):
                 indata.copy()
             ),
         ):
-            while not stop_recording:
-                sd.sleep(100)  # Sleep for 100ms to avoid busy-waiting
+            if duration is None:
+                while not stop_recording:
+                    sd.sleep(100)  # Sleep for 100ms to avoid busy-waiting
+            else:
+                # Record for the specified duration
+                sd.sleep(int(duration * 1000))  # Convert duration to milliseconds
 
         # Concatenate all recorded chunks into a single numpy array
         recording = np.concatenate(audio_chunks)
@@ -88,10 +95,34 @@ def signal_handler_exit(sig, frame):
     sys.exit(0)
 
 
-def main():
+def setup_signal_handlers():
     global stop_recording
     stop_recording = False
+    signal.signal(signal.SIGINT, signal_handler)
 
+
+def process_recording(fs, duration, api_key, api_base_url, model_name):
+    # Record audio based on the specified duration or continuously
+    recording = record_audio(fs, duration)
+
+    # Save to a temporary WAV file
+    with tempfile.NamedTemporaryFile(suffix=".wav") as tmpfile:
+        filename = tmpfile.name
+        save_audio(recording, fs, filename)
+
+        # Transcribe audio
+        transcript = transcribe_audio(filename, api_key, api_base_url, model_name)
+
+    # Copy to clipboard
+    text = transcript.text
+    pyperclip.copy(text)
+    print("\nTranscribed Text:")
+    print("-----------------")
+    print(text)
+    print("\nThe transcribed text has been copied to the clipboard.")
+
+
+def main():
     parser = argparse.ArgumentParser(
         description="Real-time speech recognizer that copies transcribed text to the clipboard."
     )
@@ -100,6 +131,13 @@ def main():
         type=str,
         default="config.yaml",
         help="Path to the configuration file. Default is 'config.yaml'.",
+    )
+    parser.add_argument(
+        "-d",
+        "--duration",
+        type=int,
+        default=None,
+        help="Duration to record (seconds). If not specified, recording continues until Ctrl+C.",
     )
 
     args = parser.parse_args()
@@ -119,34 +157,13 @@ def main():
     fs = 44100  # Sample rate
 
     # Set up signal handlers
-    signal.signal(signal.SIGINT, signal_handler)
+    setup_signal_handlers()
 
     print("Press Ctrl+C to stop recording and transcribe the audio.")
     print("Press Ctrl+C again to exit the program.")
 
-    while not stop_recording:
-        # Record audio continuously until stop signal is issued
-        recording = record_audio(fs)
-
-        # Save to a temporary WAV file
-        with tempfile.NamedTemporaryFile(suffix=".wav") as tmpfile:
-            filename = tmpfile.name
-            save_audio(recording, fs, filename)
-
-            # Transcribe audio
-            transcript = transcribe_audio(filename, api_key, api_base_url, model_name)
-
-        # Copy to clipboard
-        text = transcript.text
-
-        pyperclip.copy(text)
-        print("\nTranscribed Text:")
-        print("-----------------")
-        print(text)
-        print("\nThe transcribed text has been copied to the clipboard.")
-
-        # Wait for a short period before recording again
-        time.sleep(1)
+    # Process the recording
+    process_recording(fs, args.duration, api_key, api_base_url, model_name)
 
 
 if __name__ == "__main__":
