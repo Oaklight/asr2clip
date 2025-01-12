@@ -1,4 +1,4 @@
-# asr to clipboard Real-Time Speech-to-Text Clipboard Tool
+# asr2clip -- Speech-to-Text Clipboard Tool
 
 [中文](README.md)
 
@@ -16,8 +16,8 @@ Before you begin, ensure you have the following ready:
 1. **Clone the repository** (if applicable):
 
 ```bash
-git clone https://github.com/Oaklight/asr_to_clipboard.git
-cd asr_to_clipboard
+git clone https://github.com/Oaklight/asr2clip.git
+cd asr2clip
 ```
 
 2. **Install the required Python packages**:
@@ -50,13 +50,13 @@ sudo apt-get install xclip # More advanced functionality
 1. **Run the tool**:
 
 ```bash
-python asr_to_clipboard.py
+python asr2clip.py
 ```
 
-Alternatively, if you have made the script executable (`chmod +x asr_to_clipboard.py`), you can run it directly:
+Alternatively, if you have made the script executable (`chmod +x asr2clip.py`), you can run it directly:
 
 ```bash
-./asr_to_clipboard.py
+./asr2clip.py
 ```
 
 2. **Start speaking**:
@@ -74,7 +74,7 @@ You can customize the tool by modifying the `config.yaml` file. For example, you
 ## Example
 
 ```bash
-$ ./asr_to_clipboard.py --duration 5
+$ ./asr2clip.py --duration 5
 Recording for 5 seconds...
 Recording complete.
 Transcribing audio...

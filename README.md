@@ -1,4 +1,4 @@
-# asr to clipboard 实时语音转文字剪贴板工具
+# asr2clip 语音转文字剪贴板工具
 
 [English](README_en.md)
 
@@ -16,8 +16,8 @@
 1. **克隆仓库**（如果适用）：
 
 ```bash
-git clone https://github.com/Oaklight/asr_to_clipboard.git
-cd asr_to_clipboard
+git clone https://github.com/Oaklight/asr2clip.git
+cd asr2clip
 ```
 
 2. **安装所需的 Python 包**：
@@ -50,13 +50,13 @@ sudo apt-get install xclip # 功能更强
 1. **运行工具**：
 
 ```bash
-python asr_to_clipboard.py
+python asr2clip.py
 ```
 
-或者，如果您已经使脚本可执行（通过 `chmod +x asr_to_clipboard.py` ），可以直接运行：
+或者，如果您已经使脚本可执行（通过 `chmod +x asr2clip.py` ），可以直接运行：
 
 ```bash
-./asr_to_clipboard.py
+./asr2clip.py
 ```
 
 2. **开始说话**：
@@ -75,7 +75,7 @@ python asr_to_clipboard.py
 ## 示例
 
 ```bash
-$ ./asr_to_clipboard.py --duration 5
+$ ./asr2clip.py --duration 5
 Recording for 5 seconds...
 Recording complete.
 Transcribing audio...
