@@ -2,3 +2,15 @@ asr_model:
   api_base_url: "https://api.openai.com/v1/" # or other compatible API base URL
   api_key: "YOUR_API_KEY" # api key for the platform
   model_name: "whisper-1" # or other compatible model
+
+# # xinference or other selfhosted platform
+# asr_model: # for selfhosted xinference
+#   api_base_url: "https://localhost:9997/v1" # or other compatible API base URL
+#   api_key: "none-or-random"
+#   model_name: "SenseVoiceSmall" # or other compatible model
+
+# # SiliconFlow or other compatible platform
+# asr_model:
+#   api_base_url: "https://api.siliconflow.com/v1/" # or other compatible API base URL
+#   api_key: "YOUR_API_KEY" # api key for the platform
+#   model_name: "FunAudioLLM/SenseVoiceSmall"

@@ -9,7 +9,7 @@
 在开始之前，请确保已准备好了以下内容：
 
 - **Python 3.8 或更高版本**：该工具是用 Python 编写的，因此您需要在系统上安装 Python。
-- **API 密钥**：您需要一个语音识别服务的 API 密钥（例如 OpenAI 的 Whisper API 或兼容的语音转文字 (ASR) API，如[siliconflow](https://siliconflow.cn)）。请确保您拥有必要的凭证。
+- **API 密钥**：您需要一个语音识别服务的 API 密钥（例如 **OpenAI/Whisper** API 或与之兼容的语音转文字 (ASR) API，如**FunAudioLLM/SenseVoiceSmall**，见[硅基流动siliconflow](https://siliconflow.cn/) 或 [xinference](https://inference.readthedocs.io/en/latest/)）。请确保您拥有必要的凭证。
 
 ## 安装
 
@@ -27,7 +27,7 @@ pip install -r requirements.txt
 ```
 
 3. **设置 API 密钥**：
-   - 在项目的根目录下创建一个 `config.yaml` 文件，已提供了一个示例文件 `config.example.yaml`。
+   - 在项目的根目录下创建一个 `config.yaml` 文件，已提供了一个示例文件 [`config.example.yaml`](config.example.yaml)。
    - 将您的 API 密钥添加到 `config.yaml` 文件中：
 
 ```yaml

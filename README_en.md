@@ -9,7 +9,7 @@ This tool is designed to recognize speech in real-time, convert it to text, and 
 Before you begin, ensure you have the following ready:
 
 - **Python 3.8 or higher**: The tool is written in Python, so you'll need Python installed on your system.
-- **API Key**: You will need an API key from a speech recognition service (e.g., OpenAI's Whisper API or a compatible Speech-to-Text (ASR) API, such as [siliconflow](https://siliconflow.cn)). Make sure you have the necessary credentials.
+- **API Key**: You will need an API key from a speech recognition service (e.g., **OpenAI/Whisper** API or a compatible ASR API, such as **FunAudioLLM/SenseVoiceSmall** at [siliconflow](https://siliconflow.cn/) or [xinference](https://inference.readthedocs.io/en/latest/)). Make sure you have the necessary credentials.
 
 ## Installation
 
@@ -27,7 +27,7 @@ pip install -r requirements.txt
 ```
 
 3. **Set up your API key**:
-   - Create a `config.yaml` file in the root directory of the project. A sample file `config.example.yaml` is provided.
+   - Create a `config.yaml` file in the root directory of the project. A sample file [`config.example.yaml`](config.example.yaml) is provided.
    - Add your API key to the `config.yaml` file:
 
 ```yaml
