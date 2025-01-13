@@ -90,10 +90,10 @@ def save_audio(recording, fs, filename):
     write(filename, fs, recording)
 
 
-def transcribe_audio(filename, api_key, api_base_url, model_name):
+def transcribe_audio(filename, api_key, api_base_url, model_name, org_id=None):
     try:
         # Initialize OpenAI client
-        client = OpenAI(api_key=api_key, base_url=api_base_url)
+        client = OpenAI(api_key=api_key, base_url=api_base_url, organization=org_id)
 
         # Open the audio file
         with open(filename, "rb") as audio_file:
@@ -148,7 +148,14 @@ def convert_audio_to_wav(input_source):
 
 
 def process_recording(
-    fs, duration, api_key, api_base_url, model_name, use_stdin=False, input_file=None
+    fs,
+    duration,
+    api_key,
+    api_base_url,
+    model_name,
+    org_id=None,
+    use_stdin=False,
+    input_file=None,
 ):
     if use_stdin:
         # Read audio data from stdin
@@ -164,7 +171,11 @@ def process_recording(
             wav_filename = convert_audio_to_wav(filename)
             # Transcribe audio
             transcript = transcribe_audio(
-                wav_filename, api_key, api_base_url, model_name
+                wav_filename,
+                api_key,
+                api_base_url,
+                model_name,
+                org_id=org_id,
             )
             # Clean up the temporary file
             os.remove(wav_filename)
@@ -172,7 +183,13 @@ def process_recording(
         # Convert input file to WAV format
         wav_filename = convert_audio_to_wav(input_file)
         # Transcribe audio
-        transcript = transcribe_audio(wav_filename, api_key, api_base_url, model_name)
+        transcript = transcribe_audio(
+            wav_filename,
+            api_key,
+            api_base_url,
+            model_name,
+            org_id=org_id,
+        )
         # Clean up the temporary file
         os.remove(wav_filename)
     else:
@@ -185,7 +202,13 @@ def process_recording(
             save_audio(recording, fs, filename)
 
             # Transcribe audio
-            transcript = transcribe_audio(filename, api_key, api_base_url, model_name)
+            transcript = transcribe_audio(
+                filename,
+                api_key,
+                api_base_url,
+                model_name,
+                org_id=org_id,
+            )
             # Clean up the temporary file
             os.remove(filename)
 
@@ -241,6 +264,7 @@ def main():
     asr_config = read_config(args.config)
     api_key = asr_config.get("api_key", os.environ.get("OPENAI_API_KEY"))
     api_base_url = asr_config.get("api_base_url", "https://api.openai.com/v1")
+    org_id = asr_config.get("org_id", os.environ.get("OPENAI_ORG_ID"))
     model_name = asr_config.get("model_name", "whisper-1")
     quiet = asr_config.get("quiet", False)
 
@@ -266,7 +290,14 @@ def main():
 
     # Process the recording
     process_recording(
-        fs, args.duration, api_key, api_base_url, model_name, args.stdin, args.input
+        fs=fs,
+        duration=args.duration,
+        api_key=api_key,
+        api_base_url=api_base_url,
+        org_id=org_id,
+        model_name=model_name,
+        use_stdin=args.stdin,
+        input_file=args.input,
     )
 
 
