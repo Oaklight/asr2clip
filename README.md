@@ -63,8 +63,8 @@ model_name: whisper-1
 If you are using `pyperclip` on Linux, make sure to install `xclip` or `xsel`. You can install them using the following commands:
 
 ```bash
-sudo apt-get install xsel # Basic clipboard functionality
-sudo apt-get install xclip # More advanced functionality
+sudo apt-get install xsel # Basic clipboard functionality, same to asr2clip
+sudo apt-get install xclip # More advanced functionality, same to asr2clip
 ```
 
 ## Usage
@@ -83,7 +83,7 @@ asr2clip
 3. **Stop the tool**:
    - Press `Ctrl+C` to stop the tool.
 
-### Additional Options
+### Command Line Options
 
 - **Transcribe from a file**:
   You can transcribe an audio file directly by specifying the file path. The tool supports any audio format that `pydub` can handle (e.g., MP3, WAV, FLAC, AAC):
@@ -104,6 +104,27 @@ cat /path/to/audio/file.wav | asr2clip --stdin
 
 ```bash
 asr2clip --duration 10
+```
+
+- **Generate configuration template**:
+  Generate a configuration file template and exit:
+
+```bash
+asr2clip --generate_config
+```
+
+- **Quiet mode**:
+  Disable logging output:
+
+```bash
+asr2clip --quiet
+```
+
+- **Specify configuration file**:
+  Use a custom configuration file path:
+
+```bash
+asr2clip --config /path/to/config.conf
 ```
 
 ## Configuration

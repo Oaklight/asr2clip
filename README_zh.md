@@ -63,8 +63,8 @@ model_name: whisper-1
 如果您在 Linux 上使用 `pyperclip` ，请确保安装了 `xclip` 或 `xsel` 。可以通过以下命令安装：
 
 ```bash
-sudo apt-get install xsel # 基础剪贴板功能
-sudo apt-get install xclip # 功能更强
+sudo apt-get install xsel # 基础剪贴板功能，对asr2clip无差别
+sudo apt-get install xclip # 功能更强，对asr2clip无差别
 ```
 
 ## 使用方法
@@ -83,7 +83,7 @@ asr2clip
 3. **停止工具**：
    - 按 `Ctrl+C` 停止工具。
 
-### 额外选项
+### 命令行选项
 
 - **从文件转录**：
   您可以通过指定文件路径直接转录音频文件。工具支持 `pydub` 支持的所有音频格式（如 MP3、WAV、FLAC、AAC 等）：
@@ -104,6 +104,27 @@ cat /path/to/audio/file.wav | asr2clip --stdin
 
 ```bash
 asr2clip --duration 10
+```
+
+- **生成配置文件模板**：
+  生成一个配置文件模板并退出：
+
+```bash
+asr2clip --generate_config
+```
+
+- **静默模式**：
+  禁用日志输出：
+
+```bash
+asr2clip --quiet
+```
+
+- **指定配置文件**：
+  使用自定义配置文件路径：
+
+```bash
+asr2clip --config /path/to/config.conf
 ```
 
 ## 配置
