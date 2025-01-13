@@ -14,7 +14,7 @@ from openai import OpenAI
 from pydub import AudioSegment
 from scipy.io.wavfile import write
 
-verbose = False
+verbose = True
 
 
 def log(message, **kwargs):
@@ -229,22 +229,26 @@ def main():
         help="Path to the input audio file to transcribe.",
     )
     parser.add_argument(
-        "-v",
-        "--verbose",
+        "-q",
+        "--quiet",
         action="store_true",
-        help="Enable verbose logging.",
+        help="Disable logging.",
     )
 
     args = parser.parse_args()
-    global verbose
-    if args.verbose:
-        verbose = True
 
     # Read configuration
     asr_config = read_config(args.config)
     api_key = asr_config.get("api_key", os.environ.get("OPENAI_API_KEY"))
     api_base_url = asr_config.get("api_base_url", "https://api.openai.com/v1")
     model_name = asr_config.get("model_name", "whisper-1")
+    quiet = asr_config.get("quiet", False)
+
+    global verbose
+    if quiet:  # config file has lower priority
+        verbose = False
+    if args.quiet:  # command line argument can override
+        verbose = False
 
     # Check API key
     if not api_key:
