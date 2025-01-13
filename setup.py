@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="asr2clip",
-    version="0.3.0",
+    version="0.3.5",
     author="Oaklight",
     author_email="oaklight@gmx.com",
     description="A real-time speech-to-text clipboard tool.",
