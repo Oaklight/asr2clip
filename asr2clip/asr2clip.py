@@ -14,6 +14,17 @@ from openai import OpenAI
 from pydub import AudioSegment
 from scipy.io.wavfile import write
 
+verbose = False
+
+
+def log(message, **kwargs):
+    global verbose
+    if verbose:
+        if kwargs:
+            print(message, **kwargs)
+        else:
+            print(message)
+
 
 def read_config(config_file):
     # Check if the config file exists in the repository root directory
@@ -41,9 +52,9 @@ def read_config(config_file):
 
 def record_audio(fs, duration=None):
     if duration:
-        print(f"Recording for {duration} seconds...")
+        log(f"Recording for {duration} seconds...")
     else:
-        print("Recording indefinitely. Press Ctrl+C to stop.")
+        log("Recording indefinitely...")
     try:
         # Initialize an empty list to store audio chunks
         audio_chunks = []
@@ -65,7 +76,7 @@ def record_audio(fs, duration=None):
 
         # Concatenate all recorded chunks into a single numpy array
         recording = np.concatenate(audio_chunks)
-        print("Recording stopped.")
+        log("Recording stopped.")
         return recording
     except Exception as e:
         print(f"An error occurred while recording audio: {e}")
@@ -86,7 +97,7 @@ def transcribe_audio(filename, api_key, api_base_url, model_name):
 
         # Open the audio file
         with open(filename, "rb") as audio_file:
-            print("Transcribing audio...")
+            log("Transcribing audio...")
             transcript = client.audio.transcriptions.create(
                 model=model_name,
                 file=audio_file,
@@ -100,12 +111,12 @@ def transcribe_audio(filename, api_key, api_base_url, model_name):
 def signal_handler(sig, frame):
     global stop_recording
     stop_recording = True
-    print("\nReceived interrupt signal. Press Ctrl+C again to exit.")
+    log("\nReceived interrupt signal...", end=" ")
     signal.signal(signal.SIGINT, signal_handler_exit)
 
 
 def signal_handler_exit(sig, frame):
-    print("\nExiting...")
+    log("\nExiting...")
     sys.exit(0)
 
 
@@ -119,11 +130,11 @@ def convert_audio_to_wav(input_source):
     """Convert an audio file or raw audio data to WAV format."""
     if isinstance(input_source, str) and os.path.isfile(input_source):
         # Input is a file path
-        print(f"Reading audio file: {input_source}")
+        log(f"Reading audio file: {input_source}")
         audio = AudioSegment.from_file(input_source)
     else:
         # Input is raw audio data (e.g., a temporary file or stdin data)
-        print("Converting raw audio data to WAV format...")
+        log("Converting raw audio data to WAV format...")
         audio = AudioSegment.from_file(input_source, format="wav")
 
     # Create a temporary file manually (without using the context manager)
@@ -141,7 +152,7 @@ def process_recording(
 ):
     if use_stdin:
         # Read audio data from stdin
-        print("Reading audio data from stdin...")
+        log("Reading audio data from stdin...")
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmpfile:
             filename = tmpfile.name
             # Assuming the input is raw audio data, you may need to adjust this depending on the format
@@ -181,10 +192,10 @@ def process_recording(
     # Copy to clipboard
     text = transcript.text
     pyperclip.copy(text)
-    print("\nTranscribed Text:")
-    print("-----------------")
+    log("\nTranscribed Text:")
+    log("-----------------")
     print(text)
-    print("\nThe transcribed text has been copied to the clipboard.")
+    log("\nCopied to the clipboard!")
 
 
 def main():
@@ -192,6 +203,7 @@ def main():
         description="Real-time speech recognizer that copies transcribed text to the clipboard."
     )
     parser.add_argument(
+        "-c",
         "--config",
         type=str,
         default="asr2clip.conf",
@@ -216,8 +228,17 @@ def main():
         default=None,
         help="Path to the input audio file to transcribe.",
     )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Enable verbose logging.",
+    )
 
     args = parser.parse_args()
+    global verbose
+    if args.verbose:
+        verbose = True
 
     # Read configuration
     asr_config = read_config(args.config)
@@ -235,8 +256,9 @@ def main():
     # Set up signal handlers
     setup_signal_handlers()
 
-    print("Press Ctrl+C to stop recording and transcribe the audio.")
-    print("Press Ctrl+C again to exit the program.")
+    log(
+        "Press Ctrl+C\n   - once, to stop recording and transcribe\n   - twice, to exit the program"
+    )
 
     # Process the recording
     process_recording(
