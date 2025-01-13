@@ -37,6 +37,11 @@ def read_config(config_file):
             config_path = user_config_path
         else:
             print(f"Configuration file not found: {config_file} or {user_config_path}")
+            print("\nTo generate a template configuration file, run:")
+            print("    asr2clip.py --generate_config")
+            print(
+                f"\nCopy the output to a file (e.g., {user_config_path}) and customize it."
+            )
             sys.exit(1)
 
     try:
@@ -48,6 +53,28 @@ def read_config(config_file):
     except Exception as e:
         print(f"Could not read configuration file {config_path}: {e}")
         sys.exit(1)
+
+
+def generate_config():
+    """Prints the template configuration for asr2clip.conf."""
+    config_template = """
+api_base_url: "https://api.openai.com/v1/"  # or other compatible API base URL
+api_key: "YOUR_API_KEY"                     # api key for the platform
+model_name: "whisper-1"                     # or other compatible model
+# quiet: false                              # optional, `true` only allow errors and transcriptions
+# org_id: none                              # optional, only required if you are using OpenAI organization id
+
+# xinference or other selfhosted platform
+# api_base_url: "https://localhost:9997/v1" # or other compatible API base URL
+# api_key: "none-or-random"
+# model_name: "SenseVoiceSmall"             # or other compatible model
+
+# SiliconFlow or other compatible platform
+# api_base_url: "https://api.siliconflow.com/v1/"  # or other compatible API base URL
+# api_key: "YOUR_API_KEY"                          # api key for the platform
+# model_name: "FunAudioLLM/SenseVoiceSmall"
+"""
+    print(config_template.strip())
 
 
 def record_audio(fs, duration=None):
@@ -257,8 +284,18 @@ def main():
         action="store_true",
         help="Disable logging.",
     )
+    parser.add_argument(
+        "--generate_config",
+        action="store_true",
+        help="Print the template configuration file and exit.",
+    )
 
     args = parser.parse_args()
+
+    # If --generate_config is provided, print the template and exit
+    if args.generate_config:
+        generate_config()
+        sys.exit(0)
 
     # Read configuration
     asr_config = read_config(args.config)
