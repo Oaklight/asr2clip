@@ -106,6 +106,17 @@ cat /path/to/audio/file.wav | asr2clip --stdin
 asr2clip --duration 10
 ```
 
+- **Output to file or stdout**:
+  You can redirect the transcribed text to a file or stdout instead of copying it to the clipboard. Use the `-o` or `--output` option:
+  - Output to a file (automatically creates the file or directory):
+    ```bash
+    asr2clip --output /path/to/output.txt
+    ```
+  - Output to stdout:
+    ```bash
+    asr2clip --output -
+    ```
+
 - **Generate configuration template**:
   Generate a configuration file template and exit:
 
@@ -127,11 +138,9 @@ asr2clip --quiet
 asr2clip --config /path/to/config.conf
 ```
 
-## Configuration
+---
 
-You can customize the tool by modifying the `asr2clip.conf` file. For example, you can change the API endpoint, audio sampling rate, or other parameters depending on the API service you are using.
-
-## Example
+### Example
 
 ```bash
 $ ./asr2clip.py --duration 5
@@ -144,16 +153,23 @@ Transcribed Text:
 The transcribed text has been copied to the clipboard.
 ```
 
-## Troubleshooting
+---
+
+### Troubleshooting
 
 - **Audio not captured**: Ensure your microphone is properly connected and configured.
 - **API errors**: Check your API key and ensure you have sufficient credits or permissions.
 - **Clipboard issues**: Ensure `pyperclip` is correctly installed and compatible with your operating system. Linux users need to install `xclip` or `xsel`.
+- **File output issues**: If the specified output file path contains a nonexistent directory, the tool will automatically create it. Please ensure you have the necessary permissions.
 
-## Contributing
+---
+
+### Contributing
 
 If you would like to contribute to this project, please fork the repository and submit a pull request. We welcome any improvements or new features!
 
-## License
+---
+
+### License
 
 This project is licensed under the GNU Affero General Public License v3.0. See the [LICENSE](LICENSE) file for details.

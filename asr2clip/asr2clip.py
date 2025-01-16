@@ -183,6 +183,7 @@ def process_recording(
     org_id=None,
     use_stdin=False,
     input_file=None,
+    output_file=None,
 ):
     if use_stdin:
         # Read audio data from stdin
@@ -239,13 +240,30 @@ def process_recording(
             # Clean up the temporary file
             os.remove(filename)
 
-    # Copy to clipboard
+    # Get the transcribed text
     text = transcript.text
-    pyperclip.copy(text)
-    log("\nTranscribed Text:")
-    log("-----------------")
-    print(text)
-    log("\nCopied to the clipboard!")
+
+    # Handle output redirection
+    if output_file == "-":
+        # Output to stdout
+        print(text)
+    elif output_file:
+        # Create the directory if it doesn't exist
+        output_dir = os.path.dirname(output_file)
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
+
+        # Output to a file
+        with open(output_file, "w") as f:
+            f.write(text)
+        log(f"\nTranscribed text saved to {output_file}")
+    else:
+        # Copy to clipboard
+        pyperclip.copy(text)
+        log("\nTranscribed Text:")
+        log("-----------------")
+        print(text)
+        log("\nCopied to the clipboard!")
 
 
 def main():
@@ -288,6 +306,13 @@ def main():
         "--generate_config",
         action="store_true",
         help="Print the template configuration file and exit.",
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        default=None,
+        help="Path to the output file. If not specified, output will be copied to the clipboard. Use '-' for stdout.",
     )
 
     args = parser.parse_args()
@@ -335,6 +360,7 @@ def main():
         model_name=model_name,
         use_stdin=args.stdin,
         input_file=args.input,
+        output_file=args.output,  # Pass the output file argument
     )
 
 

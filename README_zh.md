@@ -106,6 +106,17 @@ cat /path/to/audio/file.wav | asr2clip --stdin
 asr2clip --duration 10
 ```
 
+- **输出到文件或 stdout**：
+  您可以将转录的文字输出到文件或 stdout，而不是复制到剪贴板。使用 `-o` 或 `--output` 选项：
+  - 输出到文件（自动创建文件或目录）：
+    ```bash
+    asr2clip --output /path/to/output.txt
+    ```
+  - 输出到 stdout：
+    ```bash
+    asr2clip --output -
+    ```
+
 - **生成配置文件模板**：
   生成一个配置文件模板并退出：
 
@@ -127,11 +138,9 @@ asr2clip --quiet
 asr2clip --config /path/to/config.conf
 ```
 
-## 配置
+---
 
-您可以通过修改 `asr2clip.conf` 文件来自定义工具。例如，您可以根据使用的 API 服务更改 API 端点、音频采样率或其他参数。
-
-## 示例
+### 示例
 
 ```bash
 $ ./asr2clip.py --duration 5
@@ -144,16 +153,23 @@ Transcribed Text:
 The transcribed text has been copied to the clipboard.
 ```
 
-## 故障排除
+---
+
+### 故障排除
 
 - **音频未捕获**：确保您的麦克风已正确连接并配置。
 - **API 错误**：检查您的 API 密钥，并确保您有足够的额度或权限。
 - **剪贴板问题**：确保 `pyperclip` 已正确安装并与您的操作系统兼容。Linux 用户需要安装 `xclip` 或 `xsel`。
+- **文件输出问题**：如果指定的输出文件路径包含不存在的目录，工具将自动创建该目录。请自行注意权限问题。
 
-## 贡献
+---
+
+### 贡献
 
 如果您想为此项目做出贡献，请 fork 仓库并提交 pull request。欢迎任何改进或新功能！
 
-## 许可证
+---
+
+### 许可证
 
 本项目采用 GNU Affero 通用公共许可证 v3.0。详情请参阅 [LICENSE](LICENSE) 文件。
