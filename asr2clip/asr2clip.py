@@ -10,7 +10,7 @@ import numpy as np
 import pyperclip
 import sounddevice as sd
 import yaml
-from openai import OpenAI
+from faster_whisper import WhisperModel
 from pydub import AudioSegment
 from scipy.io.wavfile import write
 
@@ -58,21 +58,10 @@ def read_config(config_file):
 def generate_config():
     """Prints the template configuration for asr2clip.conf."""
     config_template = """
-api_base_url: "https://api.openai.com/v1/"  # or other compatible API base URL
-api_key: "YOUR_API_KEY"                     # api key for the platform
-model_name: "whisper-1"                     # or other compatible model
-# quiet: false                              # optional, `true` only allow errors and transcriptions
-# org_id: none                              # optional, only required if you are using OpenAI organization id
-
-# xinference or other selfhosted platform
-# api_base_url: "https://localhost:9997/v1" # or other compatible API base URL
-# api_key: "none-or-random"
-# model_name: "SenseVoiceSmall"             # or other compatible model
-
-# SiliconFlow or other compatible platform
-# api_base_url: "https://api.siliconflow.com/v1/"  # or other compatible API base URL
-# api_key: "YOUR_API_KEY"                          # api key for the platform
-# model_name: "FunAudioLLM/SenseVoiceSmall"
+# Configuration for asr2clip
+# See https://github.com/guillaumekln/faster-whisper for available models
+model_name: "base"  # Models: "tiny", "tiny.en", "base", "base.en", "small", "small.en", "medium", "medium.en", "large-v1", "large-v2", "large-v3"
+# quiet: false      # optional, `true` only allow errors and transcriptions
 """
     print(config_template.strip())
 
@@ -117,19 +106,23 @@ def save_audio(recording, fs, filename):
     write(filename, fs, recording)
 
 
-def transcribe_audio(filename, api_key, api_base_url, model_name, org_id=None):
+def transcribe_audio(filename, model_name):
     try:
-        # Initialize OpenAI client
-        client = OpenAI(api_key=api_key, base_url=api_base_url, organization=org_id)
+        log(f"Loading model '{model_name}'...")
+        model = WhisperModel(model_name, device="cpu", compute_type="int8")
+        log("Transcribing audio...")
+        segments, info = model.transcribe(filename, beam_size=5)
+        log(f"Detected language '{info.language}' with probability {info.language_probability}")
+        
+        text = "".join(segment.text for segment in segments)
+        
+        # Create a simple object to mimic the old transcript object structure
+        class Transcript:
+            def __init__(self, text):
+                self.text = text
+        
+        return Transcript(text)
 
-        # Open the audio file
-        with open(filename, "rb") as audio_file:
-            log("Transcribing audio...")
-            transcript = client.audio.transcriptions.create(
-                model=model_name,
-                file=audio_file,
-            )
-            return transcript
     except Exception as e:
         print(f"An error occurred during transcription: {e}")
         sys.exit(1)
@@ -177,10 +170,7 @@ def convert_audio_to_wav(input_source):
 def process_recording(
     fs,
     duration,
-    api_key,
-    api_base_url,
     model_name,
-    org_id=None,
     use_stdin=False,
     input_file=None,
     output_file=None,
@@ -200,10 +190,7 @@ def process_recording(
             # Transcribe audio
             transcript = transcribe_audio(
                 wav_filename,
-                api_key,
-                api_base_url,
                 model_name,
-                org_id=org_id,
             )
             # Clean up the temporary file
             os.remove(wav_filename)
@@ -213,10 +200,7 @@ def process_recording(
         # Transcribe audio
         transcript = transcribe_audio(
             wav_filename,
-            api_key,
-            api_base_url,
             model_name,
-            org_id=org_id,
         )
         # Clean up the temporary file
         os.remove(wav_filename)
@@ -232,10 +216,7 @@ def process_recording(
             # Transcribe audio
             transcript = transcribe_audio(
                 filename,
-                api_key,
-                api_base_url,
                 model_name,
-                org_id=org_id,
             )
             # Clean up the temporary file
             os.remove(filename)
@@ -324,10 +305,7 @@ def main():
 
     # Read configuration
     asr_config = read_config(args.config)
-    api_key = asr_config.get("api_key", os.environ.get("OPENAI_API_KEY"))
-    api_base_url = asr_config.get("api_base_url", "https://api.openai.com/v1")
-    org_id = asr_config.get("org_id", os.environ.get("OPENAI_ORG_ID"))
-    model_name = asr_config.get("model_name", "whisper-1")
+    model_name = asr_config.get("model_name", "base")
     quiet = asr_config.get("quiet", False)
 
     global verbose
@@ -335,11 +313,6 @@ def main():
         verbose = False
     if args.quiet:  # command line argument can override
         verbose = False
-
-    # Check API key
-    if not api_key:
-        print("Error: API key not found in the configuration file.")
-        sys.exit(1)
 
     fs = 44100  # Sample rate
 
@@ -354,9 +327,6 @@ def main():
     process_recording(
         fs=fs,
         duration=args.duration,
-        api_key=api_key,
-        api_base_url=api_base_url,
-        org_id=org_id,
         model_name=model_name,
         use_stdin=args.stdin,
         input_file=args.input,
