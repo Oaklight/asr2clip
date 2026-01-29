@@ -111,6 +111,11 @@ def record_audio(fs, duration=None):
 
 
 def save_audio(recording, fs, filename):
+    # Check if the recording is empty or contains invalid values
+    if recording.size == 0 or np.all(np.isnan(recording)):
+        print("Error: The recorded audio data is empty or contains invalid values.")
+        sys.exit(1)
+
     # Normalize and convert to 16-bit data
     recording = recording / np.max(np.abs(recording))
     recording = np.int16(recording * 32767)

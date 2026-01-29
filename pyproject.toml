@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["asr2clip"]
+
+[tool.setuptools.dynamic]
+version = { attr = "asr2clip.__version__" }
+
+[project]
+name = "asr2clip"
+dynamic = ["version"]
+authors = [{ name = "Oaklight", email = "oaklight@gmx.com" }]
+description = "A real-time speech-to-text clipboard tool."
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "GNU Affero General Public License v3" }
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU Affero General Public License v3",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "numpy>=1.24.4",
+    "openai>=1.59.6",
+    "pyperclip>=1.9.0",
+    "PyYAML>=6.0.2",
+    "requests>=2.32.3",
+    "scipy>=1.10.1",
+    "sounddevice>=0.5.1",
+    "pydub>=0.25.1",
+    "ffmpeg>=1.4",
+    "audioop-lts>=0.2.1; python_version>='3.13'",
+]
+
+[project.urls]
+Homepage = "https://github.com/Oaklight/asr2clip"
+
+[project.scripts]
+asr2clip = "asr2clip.asr2clip:main"

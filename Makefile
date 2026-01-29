@@ -2,7 +2,6 @@
 
 # Variables
 PACKAGE_NAME := asr2clip
-VERSION := $(shell python setup.py --version)
 DIST_DIR := dist
 BUILD_DIR := build
 
@@ -11,13 +10,13 @@ all: build
 
 # Build the package
 build:
-	@echo "Building $(PACKAGE_NAME) version $(VERSION)..."
-	python setup.py sdist bdist_wheel
+	@echo "Building $(PACKAGE_NAME)..."
+	python -m build
 	@echo "Build complete. Distribution files are in $(DIST_DIR)/"
 
 # Push the package to PyPI
 push:
-	@echo "Pushing $(PACKAGE_NAME) version $(VERSION) to PyPI..."
+	@echo "Pushing $(PACKAGE_NAME) to PyPI..."
 	twine upload $(DIST_DIR)/*
 	@echo "Package pushed to PyPI."
 
