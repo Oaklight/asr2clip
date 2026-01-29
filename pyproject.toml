@@ -26,11 +26,8 @@ dependencies = [
     "openai>=1.59.6",
     "pyperclip>=1.9.0",
     "PyYAML>=6.0.2",
-    "requests>=2.32.3",
-    "scipy>=1.10.1",
     "sounddevice>=0.5.1",
     "pydub>=0.25.1",
-    "ffmpeg>=1.4",
     "audioop-lts>=0.2.1; python_version>='3.13'",
 ]
 

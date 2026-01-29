@@ -6,6 +6,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import wave
 
 import numpy as np
 import pyperclip
@@ -13,7 +14,6 @@ import sounddevice as sd
 import yaml
 from openai import OpenAI
 from pydub import AudioSegment
-from scipy.io.wavfile import write
 
 verbose = True
 
@@ -159,6 +159,16 @@ def list_audio_devices():
     print('  audio_device: "pulse"  # or device index like 12')
 
 
+def write_wav(filename, fs, audio_data):
+    """Write audio data to a WAV file using stdlib wave module."""
+    with wave.open(filename, "wb") as wav_file:
+        wav_file.setnchannels(1)  # Mono
+        wav_file.setsampwidth(2)  # 16-bit
+        wav_file.setframerate(fs)
+        # Convert numpy array to bytes
+        wav_file.writeframes(audio_data.tobytes())
+
+
 def generate_test_audio(filename, fs=44100, duration=1.0, frequency=440):
     """Generate a simple test audio file with a sine wave tone."""
     t = np.linspace(0, duration, int(fs * duration), endpoint=False)
@@ -166,7 +176,7 @@ def generate_test_audio(filename, fs=44100, duration=1.0, frequency=440):
     audio = np.sin(2 * np.pi * frequency * t)
     # Normalize and convert to 16-bit
     audio = np.int16(audio * 32767 * 0.5)  # 50% volume
-    write(filename, fs, audio)
+    write_wav(filename, fs, audio)
     return filename
 
 
@@ -333,7 +343,7 @@ def save_audio(recording, fs, filename):
     # Normalize and convert to 16-bit data
     recording = recording / max_val
     recording = np.int16(recording * 32767)
-    write(filename, fs, recording)
+    write_wav(filename, fs, recording)
 
 
 def transcribe_audio(filename, api_key, api_base_url, model_name, org_id=None):
