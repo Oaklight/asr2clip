@@ -68,10 +68,14 @@ def signal_handler_exit(sig, frame):
 
 
 def signal_handler_daemon(sig, frame):
-    """Signal handler for daemon mode - exit immediately on Ctrl+C."""
+    """Signal handler for daemon mode - first Ctrl+C stops, second exits."""
     global stop_recording
+    if stop_recording:
+        # Second Ctrl+C - force exit immediately
+        info("\nForce exiting...")
+        sys.exit(1)
     stop_recording = True
-    info("\nStopping continuous recording...")
+    info("\nStopping... (press Ctrl+C again to force exit)")
 
 
 def setup_signal_handlers(daemon_mode: bool = False):
