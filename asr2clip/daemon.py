@@ -89,8 +89,13 @@ def continuous_recording(
             if vad.process_chunk(indata):
                 should_transcribe.set()
 
-    def transcribe_chunks(reason: str = "interval"):
-        """Transcribe accumulated audio chunks."""
+    def transcribe_chunks(reason: str = "interval", skip_silence_check: bool = False):
+        """Transcribe accumulated audio chunks.
+
+        Args:
+            reason: Reason for transcription (for logging).
+            skip_silence_check: If True, skip the silence check (used when VAD triggered).
+        """
         nonlocal audio_chunks, last_transcribe_time
 
         with chunks_lock:
@@ -105,18 +110,19 @@ def continuous_recording(
 
         duration = get_audio_duration(audio_data, sample_rate)
         if duration < 0.5:
-            log("Audio too short, skipping...")
-            return
+            return  # Too short, skip silently
 
         # Check if audio has any sound (skip silent recordings)
-        rms = calculate_rms(audio_data)
-        current_threshold = vad.get_current_threshold() if vad else silence_threshold
-        if rms < current_threshold:
-            log(
-                f"Audio is silent (RMS: {rms:.4f} < {current_threshold:.4f}), skipping API call..."
+        # But skip this check if VAD already confirmed speech
+        if not skip_silence_check:
+            rms = calculate_rms(audio_data)
+            current_threshold = (
+                vad.get_current_threshold() if vad else silence_threshold
             )
-            last_transcribe_time = time.time()
-            return
+            if rms < current_threshold:
+                # Silent, skip without verbose logging
+                last_transcribe_time = time.time()
+                return
 
         log(f"Transcribing {duration:.1f}s of audio ({reason})...")
 
@@ -169,21 +175,26 @@ def continuous_recording(
                     triggered = should_transcribe.wait(timeout=0.1)
                     if triggered:
                         should_transcribe.clear()
-                        transcribe_chunks(reason="silence detected")
-                    # Also check max interval
+                        # VAD confirmed speech, skip silence check
+                        transcribe_chunks(
+                            reason="speech detected", skip_silence_check=True
+                        )
+                    # Also check max interval (but check for silence)
                     elif time.time() - last_transcribe_time >= interval:
-                        transcribe_chunks(reason="max interval")
+                        transcribe_chunks(
+                            reason="max interval", skip_silence_check=False
+                        )
                 else:
                     sd.sleep(100)
                     # Check if it's time to transcribe
                     if time.time() - last_transcribe_time >= interval:
-                        transcribe_chunks(reason="interval")
+                        transcribe_chunks(reason="interval", skip_silence_check=False)
 
     except KeyboardInterrupt:
         pass
 
     # Transcribe any remaining audio
     log("\nProcessing remaining audio...")
-    transcribe_chunks(reason="final")
+    transcribe_chunks(reason="final", skip_silence_check=False)
 
     log("Continuous recording stopped.")
