@@ -15,6 +15,8 @@ import yaml
 from openai import OpenAI
 from pydub import AudioSegment
 
+from . import __version__
+
 verbose = True
 
 
@@ -499,6 +501,13 @@ def process_recording(
 def main():
     parser = argparse.ArgumentParser(
         description="Real-time speech recognizer that copies transcribed text to the clipboard."
+    )
+    parser.add_argument(
+        "-v",
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+        help="Show program version and exit.",
     )
     parser.add_argument(
         "-c",
