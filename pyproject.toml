@@ -28,10 +28,9 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
+    "httpx>=0.24.0",
     "numpy>=1.24.4,<2.0; python_version<'3.9'",
     "numpy>=1.24.4; python_version>='3.9'",
-    "openai>=1.0.0,<1.56; python_version<'3.9'",
-    "openai>=1.0.0; python_version>='3.9'",
     "pyperclip>=1.9.0",
     "PyYAML>=6.0.2",
     "sounddevice>=0.5.1",

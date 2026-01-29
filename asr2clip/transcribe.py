@@ -2,16 +2,23 @@
 
 import os
 import sys
+import time
 
 import httpx
 
-from .utils import error, info, print_error, print_key_value, print_success
+from .utils import error, info, print_error, print_key_value, print_success, warning
 
 
 class TranscriptionError(Exception):
     """Exception raised when transcription fails."""
 
     pass
+
+
+# Default retry configuration
+DEFAULT_MAX_RETRIES = 3
+DEFAULT_RETRY_DELAY = 2.0  # seconds
+DEFAULT_TIMEOUT = 60.0  # seconds
 
 
 def transcribe_audio(
@@ -21,8 +28,11 @@ def transcribe_audio(
     model_name: str,
     org_id: str | None = None,
     raise_on_error: bool = False,
+    max_retries: int = DEFAULT_MAX_RETRIES,
+    retry_delay: float = DEFAULT_RETRY_DELAY,
+    timeout: float = DEFAULT_TIMEOUT,
 ) -> str:
-    """Transcribe audio using the ASR API.
+    """Transcribe audio using the ASR API with automatic retry on timeout.
 
     Args:
         audio_file_path: Path to the audio file to transcribe.
@@ -31,6 +41,9 @@ def transcribe_audio(
         model_name: Name of the model to use.
         org_id: Optional organization ID.
         raise_on_error: If True, raise exception on error instead of sys.exit().
+        max_retries: Maximum number of retry attempts for timeout errors.
+        retry_delay: Delay between retries in seconds.
+        timeout: Request timeout in seconds.
 
     Returns:
         Transcribed text.
@@ -49,48 +62,80 @@ def transcribe_audio(
     if org_id:
         headers["OpenAI-Organization"] = org_id
 
-    try:
-        with open(audio_file_path, "rb") as audio_file:
-            files = {
-                "file": (os.path.basename(audio_file_path), audio_file, "audio/wav")
-            }
-            data = {"model": model_name}
+    last_error: Exception | None = None
 
-            info(f"Sending request to {url}...")
+    for attempt in range(max_retries + 1):
+        try:
+            with open(audio_file_path, "rb") as audio_file:
+                files = {
+                    "file": (os.path.basename(audio_file_path), audio_file, "audio/wav")
+                }
+                data = {"model": model_name}
 
-            with httpx.Client(timeout=60.0) as client:
-                response = client.post(url, headers=headers, files=files, data=data)
+                if attempt == 0:
+                    info(f"Sending request to {url}...")
+                else:
+                    info(f"Retry {attempt}/{max_retries}: Sending request to {url}...")
 
-            if response.status_code != 200:
-                error_msg = f"API error {response.status_code}: {response.text}"
+                with httpx.Client(timeout=timeout) as client:
+                    response = client.post(url, headers=headers, files=files, data=data)
+
+                if response.status_code != 200:
+                    error_msg = f"API error {response.status_code}: {response.text}"
+                    if raise_on_error:
+                        raise TranscriptionError(error_msg)
+                    error(error_msg)
+                    sys.exit(1)
+
+                result = response.json()
+                return result.get("text", "")
+
+        except httpx.TimeoutException as e:
+            last_error = e
+            if attempt < max_retries:
+                warning(
+                    f"Request timed out (attempt {attempt + 1}/{max_retries + 1}). "
+                    f"Retrying in {retry_delay}s..."
+                )
+                time.sleep(retry_delay)
+                continue
+            else:
+                error_msg = f"Request timed out after {max_retries + 1} attempts."
                 if raise_on_error:
-                    raise TranscriptionError(error_msg)
+                    raise TranscriptionError(error_msg) from last_error
                 error(error_msg)
                 sys.exit(1)
 
-            result = response.json()
-            return result.get("text", "")
+        except httpx.RequestError as e:
+            last_error = e
+            # Retry on connection errors as well
+            if attempt < max_retries:
+                warning(
+                    f"Request failed (attempt {attempt + 1}/{max_retries + 1}): {e}. "
+                    f"Retrying in {retry_delay}s..."
+                )
+                time.sleep(retry_delay)
+                continue
+            else:
+                error_msg = f"Request failed after {max_retries + 1} attempts: {e}"
+                if raise_on_error:
+                    raise TranscriptionError(error_msg) from last_error
+                error(error_msg)
+                sys.exit(1)
 
-    except httpx.TimeoutException:
-        error_msg = "Request timed out. Please try again."
-        if raise_on_error:
-            raise TranscriptionError(error_msg)
-        error(error_msg)
-        sys.exit(1)
+        except Exception as e:
+            error_msg = f"Transcription error: {e}"
+            if raise_on_error:
+                raise TranscriptionError(error_msg) from e
+            error(error_msg)
+            sys.exit(1)
 
-    except httpx.RequestError as e:
-        error_msg = f"Request failed: {e}"
-        if raise_on_error:
-            raise TranscriptionError(error_msg)
-        error(error_msg)
-        sys.exit(1)
-
-    except Exception as e:
-        error_msg = f"Transcription error: {e}"
-        if raise_on_error:
-            raise TranscriptionError(error_msg)
-        error(error_msg)
-        sys.exit(1)
+    # Should not reach here, but just in case
+    error_msg = "Unexpected error in transcription retry loop"
+    if raise_on_error:
+        raise TranscriptionError(error_msg)
+    error(error_msg)
+    sys.exit(1)
 
 
 def test_transcription(
