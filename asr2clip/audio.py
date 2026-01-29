@@ -1,7 +1,6 @@
 """Audio recording and processing for asr2clip."""
 
 import io
-import struct
 import tempfile
 import wave
 from typing import Callable
@@ -49,11 +48,15 @@ def write_wav(audio_data: np.ndarray, sample_rate: int, channels: int = 1) -> by
     Returns:
         WAV file content as bytes.
     """
+    # Flatten if multi-dimensional (e.g., from stereo recording)
+    if audio_data.ndim > 1:
+        audio_data = audio_data.flatten()
+
     # Convert float32 to int16
     audio_int16 = np.clip(audio_data * 32767, -32768, 32767).astype(np.int16)
 
-    # Pack to bytes
-    audio_bytes = struct.pack(f"<{len(audio_int16)}h", *audio_int16)
+    # Convert to bytes using numpy's tobytes (more efficient than struct.pack)
+    audio_bytes = audio_int16.tobytes()
 
     # Write WAV using stdlib wave module
     buffer = io.BytesIO()
