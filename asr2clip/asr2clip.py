@@ -3,6 +3,7 @@
 import argparse
 import os
 import signal
+import subprocess
 import sys
 import tempfile
 
@@ -26,23 +27,37 @@ def log(message, **kwargs):
             print(message)
 
 
+# Default paths to search for config file
+CONFIG_PATHS = [
+    "asr2clip.conf",
+    os.path.expanduser("~/.config/asr2clip.conf"),
+]
+
+
+def find_config_path(config_file=None):
+    """Find the configuration file path."""
+    if config_file and os.path.exists(config_file):
+        return config_file
+
+    for path in CONFIG_PATHS:
+        if os.path.exists(path):
+            return path
+
+    return None
+
+
 def read_config(config_file):
-    # Check if the config file exists in the repository root directory
-    if os.path.exists(config_file):
-        config_path = config_file
-    else:
-        # If not found, check the user's ~/.config/ directory
+    """Read and parse the configuration file."""
+    config_path = find_config_path(config_file)
+
+    if config_path is None:
         user_config_path = os.path.expanduser("~/.config/asr2clip.conf")
-        if os.path.exists(user_config_path):
-            config_path = user_config_path
-        else:
-            print(f"Configuration file not found: {config_file} or {user_config_path}")
-            print("\nTo generate a template configuration file, run:")
-            print("    asr2clip.py --generate_config")
-            print(
-                f"\nCopy the output to a file (e.g., {user_config_path}) and customize it."
-            )
-            sys.exit(1)
+        print(f"Configuration file not found: {config_file} or {user_config_path}")
+        print("\nTo generate a template configuration file, run:")
+        print("    asr2clip --generate_config > ~/.config/asr2clip.conf")
+        print("\nOr edit the config file directly:")
+        print("    asr2clip --edit")
+        sys.exit(1)
 
     try:
         with open(config_path, "r") as file:
@@ -53,6 +68,53 @@ def read_config(config_file):
     except Exception as e:
         print(f"Could not read configuration file {config_path}: {e}")
         sys.exit(1)
+
+
+def open_in_editor(config_file=None):
+    """Open the configuration file in the system's default editor."""
+    config_path = find_config_path(config_file)
+
+    # If no config exists, create a default one
+    if config_path is None:
+        config_path = os.path.expanduser("~/.config/asr2clip.conf")
+        os.makedirs(os.path.dirname(config_path), exist_ok=True)
+
+        # Write default config template
+        config_template = """api_base_url: "https://api.openai.com/v1/"  # or other compatible API base URL
+api_key: "YOUR_API_KEY"                     # api key for the platform
+model_name: "whisper-1"                     # or other compatible model
+# quiet: false                              # optional, `true` only allow errors and transcriptions
+# org_id: none                              # optional, only required if you are using OpenAI organization id
+# audio_device: null                        # optional, audio input device (name or index)
+                                            # use `asr2clip --list_devices` to see available devices
+                                            # common values: "pulse", "pipewire", or device index like 12
+"""
+        with open(config_path, "w") as f:
+            f.write(config_template)
+        print(f"Created new config file: {config_path}")
+
+    # Determine which editor to use
+    editors_to_try = []
+    if os.getenv("EDITOR"):
+        editors_to_try.append(os.getenv("EDITOR"))
+
+    if os.name == "nt":  # Windows
+        editors_to_try.append("notepad")
+    else:  # Unix-like
+        editors_to_try.extend(["nano", "vi", "vim"])
+
+    for editor in editors_to_try:
+        try:
+            subprocess.run([editor, config_path], check=True)
+            return
+        except FileNotFoundError:
+            continue
+        except Exception as e:
+            print(f"Failed to open editor '{editor}': {e}")
+            sys.exit(1)
+
+    print(f"No suitable editor found. Please edit manually: {config_path}")
+    sys.exit(1)
 
 
 def generate_config():
@@ -488,8 +550,19 @@ def main():
         default=None,
         help="Audio input device (name or index). Overrides config file setting.",
     )
+    parser.add_argument(
+        "-e",
+        "--edit",
+        action="store_true",
+        help="Open the configuration file in the system's default editor.",
+    )
 
     args = parser.parse_args()
+
+    # If --edit is provided, open editor and exit
+    if args.edit:
+        open_in_editor(args.config)
+        sys.exit(0)
 
     # If --list_devices is provided, list devices and exit
     if args.list_devices:

@@ -3,6 +3,9 @@ api_key: "YOUR_API_KEY"                     # api key for the platform
 model_name: "whisper-1"                     # or other compatible model
 # quiet: false                              # optional, `true` only allow errors and transcriptions
 # org_id: none                              # optional, only required if you are using OpenAI organization id
+# audio_device: null                        # optional, audio input device (name or index)
+                                            # use `asr2clip --list_devices` to see available devices
+                                            # common values: "pulse", "pipewire", or device index like 12
 
 # xinference or other selfhosted platform
 # api_base_url: "https://localhost:9997/v1" # or other compatible API base URL
