@@ -63,6 +63,7 @@ api_key: "YOUR_API_KEY"                     # api key for the platform
 model_name: "whisper-1"                     # or other compatible model
 # quiet: false                              # optional, `true` only allow errors and transcriptions
 # org_id: none                              # optional, only required if you are using OpenAI organization id
+# audio_device: null                        # optional, audio input device (name or index). Use --list_devices to see available devices
 
 # xinference or other selfhosted platform
 # api_base_url: "https://localhost:9997/v1" # or other compatible API base URL
@@ -77,6 +78,25 @@ model_name: "whisper-1"                     # or other compatible model
     print(config_template.strip())
 
 
+def list_audio_devices():
+    """List all available audio input devices."""
+    print("Available audio input devices:")
+    print("-" * 60)
+    devices = sd.query_devices()
+    for i, device in enumerate(devices):
+        # Only show devices with input channels
+        if device["max_input_channels"] > 0:
+            default_marker = "*" if i == sd.default.device[0] else " "
+            print(f"{default_marker} [{i}] {device['name']}")
+            print(
+                f"       Channels: {device['max_input_channels']}, Sample Rate: {device['default_samplerate']}"
+            )
+    print("-" * 60)
+    print("* = default device")
+    print("\nTo use a specific device, add to config file:")
+    print('  audio_device: "pulse"  # or device index like 12')
+
+
 def generate_test_audio(filename, fs=44100, duration=1.0, frequency=440):
     """Generate a simple test audio file with a sine wave tone."""
     t = np.linspace(0, duration, int(fs * duration), endpoint=False)
@@ -88,11 +108,73 @@ def generate_test_audio(filename, fs=44100, duration=1.0, frequency=440):
     return filename
 
 
-def test_api(api_key, api_base_url, model_name, org_id=None):
-    """Test the API connection by sending a simple test audio."""
-    log("Testing API connection...")
-    log(f"  API Base URL: {api_base_url}")
-    log(f"  Model: {model_name}")
+def check_clipboard_support():
+    """Check if clipboard functionality is available."""
+    try:
+        # Try to determine the paste mechanism
+        pyperclip.paste()
+        return True, None
+    except pyperclip.PyperclipException as e:
+        return False, str(e)
+
+
+def check_audio_device(device=None):
+    """Check if the audio device is working properly."""
+    try:
+        fs = 44100
+        # Try to record a very short sample
+        recording = sd.rec(
+            int(fs * 0.1), samplerate=fs, channels=1, device=device, blocking=True
+        )
+        max_val = np.max(np.abs(recording))
+        if max_val == 0:
+            return (
+                False,
+                "Audio device returns silent/zero data. Try a different device with --list_devices",
+            )
+        return True, None
+    except Exception as e:
+        return False, str(e)
+
+
+def test_config(api_key, api_base_url, model_name, org_id=None, audio_device=None):
+    """Test the full configuration including API, audio device, and clipboard."""
+    all_passed = True
+
+    print("=" * 60)
+    print("asr2clip Configuration Test")
+    print("=" * 60)
+
+    # Test 1: Clipboard support
+    print("\n[1/3] Testing clipboard support...")
+    clipboard_ok, clipboard_err = check_clipboard_support()
+    if clipboard_ok:
+        print("  ✓ Clipboard support: OK")
+    else:
+        print("  ✗ Clipboard support: FAILED")
+        print(f"    Error: {clipboard_err}")
+        print("    Hint: Install xclip (X11) or wl-clipboard (Wayland)")
+        print("    You can still use -o FILE or -o - to output to file/stdout")
+        all_passed = False
+
+    # Test 2: Audio device
+    print("\n[2/3] Testing audio device...")
+    device_display = audio_device if audio_device is not None else "default"
+    print(f"  Device: {device_display}")
+    audio_ok, audio_err = check_audio_device(audio_device)
+    if audio_ok:
+        print("  ✓ Audio device: OK")
+    else:
+        print("  ✗ Audio device: FAILED")
+        print(f"    Error: {audio_err}")
+        print("    Hint: Use --list_devices to see available devices")
+        print("    Then set audio_device in config or use --device")
+        all_passed = False
+
+    # Test 3: API connection
+    print("\n[3/3] Testing API connection...")
+    print(f"  API Base URL: {api_base_url}")
+    print(f"  Model: {model_name}")
 
     # Create a temporary test audio file
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmpfile:
@@ -101,7 +183,6 @@ def test_api(api_key, api_base_url, model_name, org_id=None):
     try:
         # Generate test audio (1 second of 440Hz tone)
         generate_test_audio(filename, fs=44100, duration=1.0, frequency=440)
-        log("Generated test audio (1 second, 440Hz tone)")
 
         # Try to transcribe
         transcript = transcribe_audio(
@@ -112,24 +193,38 @@ def test_api(api_key, api_base_url, model_name, org_id=None):
             org_id=org_id,
         )
 
-        log("\n✓ API connection successful!")
-        log(f"  Transcription result: '{transcript.text}'")
-        log("  (Note: A simple tone may produce empty or unexpected transcription)")
-        return True
+        print("  ✓ API connection: OK")
+        print(f"    Transcription result: '{transcript.text}'")
+        print("    (Note: A simple tone may produce empty or unexpected transcription)")
     except Exception as e:
-        print(f"\n✗ API connection failed: {e}")
-        return False
+        print("  ✗ API connection: FAILED")
+        print(f"    Error: {e}")
+        all_passed = False
     finally:
         # Clean up
         if os.path.exists(filename):
             os.remove(filename)
 
+    # Summary
+    print("\n" + "=" * 60)
+    if all_passed:
+        print("All tests passed! ✓")
+    else:
+        print("Some tests failed. Please fix the issues above.")
+    print("=" * 60)
 
-def record_audio(fs, duration=None):
+    return all_passed
+
+
+def record_audio(fs, duration=None, device=None):
     if duration:
         log(f"Recording for {duration} seconds...")
     else:
         log("Recording indefinitely...")
+
+    if device is not None:
+        log(f"Using audio device: {device}")
+
     try:
         # Initialize an empty list to store audio chunks
         audio_chunks = []
@@ -138,6 +233,7 @@ def record_audio(fs, duration=None):
         with sd.InputStream(
             samplerate=fs,
             channels=1,
+            device=device,
             callback=lambda indata, frames, time, status: audio_chunks.append(
                 indata.copy()
             ),
@@ -245,6 +341,7 @@ def process_recording(
     use_stdin=False,
     input_file=None,
     output_file=None,
+    audio_device=None,
 ):
     if use_stdin:
         # Read audio data from stdin
@@ -283,7 +380,7 @@ def process_recording(
         os.remove(wav_filename)
     else:
         # Record audio based on the specified duration or continuously
-        recording = record_audio(fs, duration)
+        recording = record_audio(fs, duration, device=audio_device)
 
         # Save to a temporary WAV file
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmpfile:
@@ -376,31 +473,60 @@ def main():
         help="Path to the output file. If not specified, output will be copied to the clipboard. Use '-' for stdout.",
     )
     parser.add_argument(
-        "--test_api",
+        "--test",
         action="store_true",
-        help="Test the API connection with a simple audio sample and exit.",
+        help="Test the full configuration (API, audio device, clipboard) and exit.",
+    )
+    parser.add_argument(
+        "--list_devices",
+        action="store_true",
+        help="List available audio input devices and exit.",
+    )
+    parser.add_argument(
+        "--device",
+        type=str,
+        default=None,
+        help="Audio input device (name or index). Overrides config file setting.",
     )
 
     args = parser.parse_args()
+
+    # If --list_devices is provided, list devices and exit
+    if args.list_devices:
+        list_audio_devices()
+        sys.exit(0)
 
     # If --generate_config is provided, print the template and exit
     if args.generate_config:
         generate_config()
         sys.exit(0)
 
-    # If --test_api is provided, test the API and exit
-    if args.test_api:
+    # If --test is provided, test the full configuration and exit
+    if args.test:
         asr_config = read_config(args.config)
         api_key = asr_config.get("api_key", os.environ.get("OPENAI_API_KEY"))
         api_base_url = asr_config.get("api_base_url", "https://api.openai.com/v1")
         org_id = asr_config.get("org_id", os.environ.get("OPENAI_ORG_ID"))
         model_name = asr_config.get("model_name", "whisper-1")
 
+        # Get audio device from command line or config
+        test_audio_device = args.device
+        if test_audio_device is None:
+            test_audio_device = asr_config.get("audio_device", None)
+        if (
+            test_audio_device is not None
+            and isinstance(test_audio_device, str)
+            and test_audio_device.isdigit()
+        ):
+            test_audio_device = int(test_audio_device)
+
         if not api_key:
             print("Error: API key not found in the configuration file.")
             sys.exit(1)
 
-        success = test_api(api_key, api_base_url, model_name, org_id)
+        success = test_config(
+            api_key, api_base_url, model_name, org_id, test_audio_device
+        )
         sys.exit(0 if success else 1)
 
     # Read configuration
@@ -410,6 +536,19 @@ def main():
     org_id = asr_config.get("org_id", os.environ.get("OPENAI_ORG_ID"))
     model_name = asr_config.get("model_name", "whisper-1")
     quiet = asr_config.get("quiet", False)
+
+    # Get audio device from command line or config
+    audio_device = args.device
+    if audio_device is None:
+        audio_device = asr_config.get("audio_device", None)
+
+    # Convert device to int if it's a numeric string
+    if (
+        audio_device is not None
+        and isinstance(audio_device, str)
+        and audio_device.isdigit()
+    ):
+        audio_device = int(audio_device)
 
     global verbose
     if quiet:  # config file has lower priority
@@ -441,7 +580,8 @@ def main():
         model_name=model_name,
         use_stdin=args.stdin,
         input_file=args.input,
-        output_file=args.output,  # Pass the output file argument
+        output_file=args.output,
+        audio_device=audio_device,
     )
 
 
