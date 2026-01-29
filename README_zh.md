@@ -1,175 +1,189 @@
 # asr2clip 语音转文字剪贴板工具
 
+[![PyPI version](https://badge.fury.io/py/asr2clip.svg?icon=si%3Apython)](https://badge.fury.io/py/asr2clip)
+[![GitHub version](https://badge.fury.io/gh/oaklight%2Fasr2clip.svg?icon=si%3Agithub)](https://badge.fury.io/gh/oaklight%2Fasr2clip)
+[![License](https://img.shields.io/github/license/Oaklight/asr2clip)](https://github.com/Oaklight/asr2clip/blob/master/LICENSE)
+
 [English](README.md)
 
 本工具旨在实时识别语音，将其转换为文字，并自动将文字复制到系统剪贴板。该工具利用 API 服务进行语音识别，并使用 Python 库进行音频捕获和剪贴板管理。
 
+## 快速开始
+
+```bash
+pip install asr2clip       # 安装
+asr2clip --edit            # 创建/编辑配置文件
+asr2clip --test            # 测试配置
+asr2clip                   # 开始录音和转录
+```
+
 ## 前置条件
 
-在开始之前，请确保已准备好了以下内容：
+在开始之前，请确保已准备好以下内容：
 
-- **Python 3.8 或更高版本**：该工具是用 Python 编写的，因此您需要在系统上安装 Python。
-- **API 密钥**：您需要一个语音识别服务的 API 密钥（例如 **OpenAI/Whisper** API 或与之兼容的语音转文字 (ASR) API，如**FunAudioLLM/SenseVoiceSmall**，见[硅基流动siliconflow](https://siliconflow.cn/) 或 [xinference](https://inference.readthedocs.io/en/latest/)）。请确保您拥有必要的凭证。
+- **Python 3.8 或更高版本**：该工具是用 Python 编写的。
+- **API 密钥**：您需要一个语音识别服务的 API 密钥（例如 **OpenAI/Whisper** API 或兼容的 ASR API，如 [硅基流动](https://siliconflow.cn/) 或 [xinference](https://inference.readthedocs.io/en/latest/) 上的 **FunAudioLLM/SenseVoiceSmall**）。
+
+### 系统依赖
+
+| 依赖 | 用途 | Linux | macOS | Windows |
+|------|------|-------|-------|---------|
+| **ffmpeg** | 音频格式转换 | `apt install ffmpeg` | `brew install ffmpeg` | [下载](https://ffmpeg.org/download.html) |
+| **PortAudio** | 音频录制 | `apt install libportaudio2` | `brew install portaudio` | 随 sounddevice 安装 |
+| **剪贴板** | 复制到剪贴板 | `apt install xclip` (X11) 或 `wl-clipboard` (Wayland) | 内置 | 内置 |
 
 ## 安装
 
-### 选项 1: 使用 pip 或 pipx 安装
-
-您可以直接从 PyPI 使用 `pip` 或 `pipx` 安装 `asr2clip`：
+### 选项 1: 使用 pip 或 pipx 安装（推荐）
 
 ```bash
 # 使用 pip 安装
 pip install asr2clip
 
-# 或者使用 pipx 安装（推荐用于隔离环境）
+# 或使用 pipx 安装（推荐用于隔离环境）
 pipx install asr2clip
+
+# 升级到最新版本
+pip install --upgrade asr2clip
 ```
 
 ### 选项 2: 从源码安装
 
-1. **克隆仓库**（如果适用）：
-
 ```bash
 git clone https://github.com/Oaklight/asr2clip.git
 cd asr2clip
+pip install -e .
 ```
 
-2. **安装所需的 Python 包**：
+## 配置
+
+### 快速设置
+
+使用内置编辑器配置 asr2clip 是最简单的方式：
 
 ```bash
-pip install -r requirements.txt
+asr2clip --edit  # 在默认编辑器中打开配置文件
 ```
 
-### 选项 3: 使用 Conda 安装
+如果配置文件不存在，将自动在 `~/.config/asr2clip.conf` 创建。
 
-如果您使用 Conda，可以使用提供的 `environment.yaml` 文件创建环境：
+### 配置文件
 
-```bash
-conda env create -f environment.yaml
-conda activate asr
-```
-
-3. **设置 API 密钥**：
-   - 在项目的根目录下或您的 `~/.config/` 目录中创建一个 `asr2clip.conf` 文件，已提供了一个示例文件 [`asr2clip.conf.example`](asr2clip.conf.example)。
-   - 将您的 API 密钥添加到 `asr2clip.conf` 文件中（YAML 格式）：
+配置文件使用 YAML 格式：
 
 ```yaml
-api_key: your_api_key_here
-api_base_url: https://api.openai.com/v1
-model_name: whisper-1
+api_base_url: "https://api.openai.com/v1/"  # 或其他兼容的 API 地址
+api_key: "YOUR_API_KEY"                     # API 密钥
+model_name: "whisper-1"                     # 或其他兼容的模型
+# quiet: false                              # 可选，禁用日志
+# audio_device: "pulse"                     # 可选，音频输入设备
 ```
 
-4. **Linux 用户注意**：
-如果您在 Linux 上使用 `pyperclip` ，请确保安装了 `xclip` 或 `xsel` 。可以通过以下命令安装：
+配置文件搜索位置（按顺序）：
+1. `./asr2clip.conf`（当前目录）
+2. `~/.config/asr2clip.conf`
+
+### 测试配置
+
+使用前，请验证您的设置：
 
 ```bash
-sudo apt-get install xsel # 基础剪贴板功能，对asr2clip无差别
-sudo apt-get install xclip # 功能更强，对asr2clip无差别
+asr2clip --test
+```
+
+这将检查：
+- ✓ 剪贴板支持
+- ✓ 音频设备功能
+- ✓ API 连接
+
+### 音频设备选择
+
+如果默认音频设备不工作，列出可用设备并选择一个：
+
+```bash
+asr2clip --list_devices    # 列出所有音频输入设备
+asr2clip --device pulse    # 使用指定设备
+```
+
+或添加到配置文件：
+```yaml
+audio_device: "pulse"  # 或设备索引如 12
 ```
 
 ## 使用方法
 
-1. **运行工具**：
+### 基本用法
 
 ```bash
-asr2clip
+asr2clip                   # 录音直到 Ctrl+C，转录，复制到剪贴板
+asr2clip -d 10             # 录音 10 秒
+asr2clip -i audio.mp3      # 转录音频文件
 ```
-
-2. **开始说话**：
-   - 工具将开始从麦克风捕获音频。
-   - 它将音频发送到 API 进行语音识别。
-   - 识别出的文字将自动复制到系统剪贴板。
-
-3. **停止工具**：
-   - 按 `Ctrl+C` 停止工具。
 
 ### 命令行选项
 
-- **从文件转录**：
-  您可以通过指定文件路径直接转录音频文件。工具支持 `pydub` 支持的所有音频格式（如 MP3、WAV、FLAC、AAC 等）：
-
-```bash
-asr2clip --input /path/to/audio/file.mp3
 ```
+用法: asr2clip [-h] [-v] [-c CONFIG] [-d DURATION] [--stdin] [-i INPUT] [-q]
+               [--generate_config] [-o OUTPUT] [--test] [--list_devices]
+               [--device DEVICE] [-e]
 
-- **从 stdin 读取音频数据**：
-  您也可以直接将音频数据通过管道输入工具：
+实时语音识别工具，将转录文本复制到剪贴板。
 
-```bash
-cat /path/to/audio/file.wav | asr2clip --stdin
+选项:
+  -h, --help            显示帮助信息并退出
+  -v, --version         显示程序版本号并退出
+  -c CONFIG, --config CONFIG
+                        配置文件路径。默认为 'asr2clip.conf'。
+  -d DURATION, --duration DURATION
+                        录音时长（秒）。如未指定，录音将持续到按下 Ctrl+C。
+  --stdin               从 stdin 读取音频数据而非录音。
+  -i INPUT, --input INPUT
+                        要转录的音频文件路径。
+  -q, --quiet           禁用日志输出。
+  --generate_config     打印配置模板并退出。
+  -o OUTPUT, --output OUTPUT
+                        输出文件路径。如未指定，输出将复制到剪贴板。
+                        使用 '-' 输出到 stdout。
+  --test                测试完整配置（API、音频设备、剪贴板）并退出。
+  --list_devices        列出可用的音频输入设备并退出。
+  --device DEVICE       音频输入设备（名称或索引）。覆盖配置文件设置。
+  -e, --edit            在系统默认编辑器中打开配置文件。
 ```
-
-- **设置录音时长**：
-  您可以指定录音的时长（秒）：
-
-```bash
-asr2clip --duration 10
-```
-
-- **输出到文件或 stdout**：
-  您可以将转录的文字输出到文件或 stdout，而不是复制到剪贴板。使用 `-o` 或 `--output` 选项：
-  - 输出到文件（自动创建文件或目录）：
-    ```bash
-    asr2clip --output /path/to/output.txt
-    ```
-  - 输出到 stdout：
-    ```bash
-    asr2clip --output -
-    ```
-
-- **生成配置文件模板**：
-  生成一个配置文件模板并退出：
-
-```bash
-asr2clip --generate_config
-```
-
-- **静默模式**：
-  禁用日志输出：
-
-```bash
-asr2clip --quiet
-```
-
-- **指定配置文件**：
-  使用自定义配置文件路径：
-
-```bash
-asr2clip --config /path/to/config.conf
-```
-
----
 
 ### 示例
 
 ```bash
-$ ./asr2clip.py --duration 5
-Recording for 5 seconds...
-Recording complete.
-Transcribing audio...
-Transcribed Text:
------------------
-1233211234567，这是一个中文测试。
-The transcribed text has been copied to the clipboard.
+# 录音 5 秒
+asr2clip --duration 5
+
+# 转录音频文件
+asr2clip --input recording.mp3
+
+# 输出到 stdout 而不是剪贴板
+asr2clip --output -
+
+# 管道输入音频数据
+cat audio.wav | asr2clip --stdin --output -
+
+# 使用指定音频设备
+asr2clip --device pulse
 ```
 
----
+## 故障排除
 
-### 故障排除
+| 问题 | 解决方案 |
+|------|----------|
+| 音频未捕获 | 运行 `asr2clip --list_devices` 并选择可用设备 |
+| 剪贴板不工作 | 安装 `xclip` (X11) 或 `wl-clipboard` (Wayland) |
+| API 错误 | 检查配置中的 API 密钥和端点 |
+| 静音音频 | 使用 `--device` 尝试其他音频设备 |
 
-- **音频未捕获**：确保您的麦克风已正确连接并配置。
-- **API 错误**：检查您的 API 密钥，并确保您有足够的额度或权限。
-- **剪贴板问题**：确保 `pyperclip` 已正确安装并与您的操作系统兼容。Linux 用户需要安装 `xclip` 或 `xsel`。
-- **文件输出问题**：如果指定的输出文件路径包含不存在的目录，工具将自动创建该目录。请自行注意权限问题。
+运行 `asr2clip --test` 诊断问题。
 
----
-
-### 贡献
+## 贡献
 
 如果您想为此项目做出贡献，请 fork 仓库并提交 pull request。欢迎任何改进或新功能！
 
----
-
-### 许可证
+## 许可证
 
 本项目采用 GNU Affero 通用公共许可证 v3.0。详情请参阅 [LICENSE](LICENSE) 文件。
