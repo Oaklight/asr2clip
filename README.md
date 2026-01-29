@@ -199,6 +199,37 @@ In daemon mode:
 - Press Ctrl+C once to stop (transcribes remaining audio before exit)
 - Output can be a single file (append mode) or a directory (separate files)
 
+### Voice Activity Detection (VAD)
+
+Enable automatic transcription when you stop speaking:
+
+```bash
+# Auto-transcribe when silence is detected
+asr2clip --daemon --vad
+
+# Calibrate silence threshold for your environment
+asr2clip --calibrate
+
+# Use custom silence settings
+asr2clip --daemon --vad --silence_threshold 0.005 --silence_duration 2.0
+```
+
+VAD options:
+- `--vad`: Enable voice activity detection
+- `--calibrate`: Measure ambient noise and suggest threshold
+- `--auto_calibrate`: Auto-calibrate before starting daemon mode
+- `--silence_threshold`: RMS threshold for silence (default: 0.01)
+- `--silence_duration`: Seconds of silence to trigger transcription (default: 1.5)
+
+With VAD enabled, transcription is triggered when:
+1. Speech is detected (audio above threshold)
+2. Followed by silence (audio below threshold for the specified duration)
+
+Tip: Use `--auto_calibrate` to automatically measure ambient noise at startup:
+```bash
+asr2clip --daemon --vad --auto_calibrate
+```
+
 ## Troubleshooting
 
 | Problem | Solution |
