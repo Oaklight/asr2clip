@@ -17,7 +17,7 @@ from .utils import (
     setup_signal_handlers,
     warning,
 )
-from .vad import VoiceActivityDetector
+from .vad import VoiceActivityDetector, calibrate_silence_threshold
 
 
 def continuous_recording(
@@ -57,6 +57,15 @@ def continuous_recording(
     import sounddevice as sd
 
     setup_signal_handlers(daemon_mode=True)
+
+    # Auto-calibrate threshold if adaptive mode is enabled and no manual threshold set
+    if vad_enabled and adaptive_threshold and silence_threshold == 0.01:
+        info("Calibrating ambient noise level...")
+        calibrated = calibrate_silence_threshold(
+            device=device, duration=1.0, sample_rate=sample_rate
+        )
+        # Use calibrated threshold, but ensure minimum sensitivity
+        silence_threshold = max(calibrated, 0.001)
 
     if vad_enabled:
         info(f"Starting continuous recording with VAD (silence: {silence_duration}s)")
