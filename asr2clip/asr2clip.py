@@ -6,7 +6,10 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import wave
+from datetime import datetime
 
 import numpy as np
 import pyperclip
@@ -348,7 +351,25 @@ def save_audio(recording, fs, filename):
     write_wav(filename, fs, recording)
 
 
-def transcribe_audio(filename, api_key, api_base_url, model_name, org_id=None):
+def transcribe_audio(
+    filename, api_key, api_base_url, model_name, org_id=None, raise_on_error=False
+):
+    """Transcribe audio file using the API.
+
+    Args:
+        filename: Path to the audio file
+        api_key: API key for authentication
+        api_base_url: Base URL for the API
+        model_name: Name of the transcription model
+        org_id: Optional organization ID
+        raise_on_error: If True, raise exception instead of sys.exit()
+
+    Returns:
+        Transcription result object
+
+    Raises:
+        Exception: If raise_on_error is True and transcription fails
+    """
     try:
         # Initialize OpenAI client
         client = OpenAI(api_key=api_key, base_url=api_base_url, organization=org_id)
@@ -362,6 +383,8 @@ def transcribe_audio(filename, api_key, api_base_url, model_name, org_id=None):
             )
             return transcript
     except Exception as e:
+        if raise_on_error:
+            raise
         print(f"An error occurred during transcription: {e}")
         sys.exit(1)
 
@@ -378,10 +401,20 @@ def signal_handler_exit(sig, frame):
     sys.exit(0)
 
 
-def setup_signal_handlers():
+def signal_handler_daemon(sig, frame):
+    """Signal handler for daemon mode - exit immediately on Ctrl+C."""
+    global stop_recording
+    stop_recording = True
+    log("\nStopping continuous recording...")
+
+
+def setup_signal_handlers(daemon_mode=False):
     global stop_recording
     stop_recording = False
-    signal.signal(signal.SIGINT, signal_handler)
+    if daemon_mode:
+        signal.signal(signal.SIGINT, signal_handler_daemon)
+    else:
+        signal.signal(signal.SIGINT, signal_handler)
 
 
 def convert_audio_to_wav(input_source):
@@ -403,6 +436,226 @@ def convert_audio_to_wav(input_source):
     # Export the audio to the temporary WAV file
     audio.export(filename, format="wav")
     return filename
+
+
+def generate_timestamp_filename(output_path, extension=".txt"):
+    """Generate a timestamped filename for continuous mode output."""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    if os.path.isdir(output_path):
+        return os.path.join(output_path, f"transcript_{timestamp}{extension}")
+    return output_path
+
+
+def append_transcript_to_file(output_file, text, timestamp=None):
+    """Append transcribed text to a file with optional timestamp."""
+    with open(output_file, "a", encoding="utf-8") as f:
+        if timestamp:
+            f.write(f"\n[{timestamp}]\n")
+        f.write(text)
+        f.write("\n")
+
+
+def continuous_recording(
+    fs,
+    interval,
+    api_key,
+    api_base_url,
+    model_name,
+    org_id=None,
+    output_path=None,
+    audio_device=None,
+):
+    """Continuously record and transcribe audio at specified intervals."""
+    global stop_recording
+
+    log(f"Starting continuous recording mode (interval: {interval}s)...")
+    log("Press Ctrl+C to stop.")
+
+    # Determine output mode
+    output_is_dir = output_path and os.path.isdir(output_path)
+    if output_path and not output_is_dir:
+        # Create parent directory if needed
+        output_dir = os.path.dirname(output_path)
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
+        # Clear the file at start
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(
+                f"# Continuous transcription started at {datetime.now().isoformat()}\n"
+            )
+
+    segment_count = 0
+    audio_chunks = []
+    chunk_lock = threading.Lock()
+
+    def audio_callback(indata, frames, time_info, status):
+        with chunk_lock:
+            audio_chunks.append(indata.copy())
+
+    try:
+        with sd.InputStream(
+            samplerate=fs,
+            channels=1,
+            device=audio_device,
+            callback=audio_callback,
+        ):
+            last_transcribe_time = time.time()
+
+            while not stop_recording:
+                sd.sleep(100)  # Sleep for 100ms
+
+                current_time = time.time()
+                elapsed = current_time - last_transcribe_time
+
+                if elapsed >= interval:
+                    # Time to transcribe
+                    with chunk_lock:
+                        if audio_chunks:
+                            recording = np.concatenate(audio_chunks)
+                            audio_chunks.clear()
+                        else:
+                            recording = None
+
+                    if recording is not None and recording.size > 0:
+                        segment_count += 1
+                        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        log(f"\n[Segment {segment_count}] Transcribing...")
+
+                        # Save to temporary file
+                        with tempfile.NamedTemporaryFile(
+                            suffix=".wav", delete=False
+                        ) as tmpfile:
+                            temp_filename = tmpfile.name
+
+                        try:
+                            # Check for valid audio
+                            max_val = np.max(np.abs(recording))
+                            if max_val > 0 and not np.isnan(max_val):
+                                # Normalize and save
+                                normalized = recording / max_val
+                                audio_int16 = np.int16(normalized * 32767)
+                                write_wav(temp_filename, fs, audio_int16)
+
+                                # Transcribe (don't exit on error in daemon mode)
+                                try:
+                                    transcript = transcribe_audio(
+                                        temp_filename,
+                                        api_key,
+                                        api_base_url,
+                                        model_name,
+                                        org_id=org_id,
+                                        raise_on_error=True,
+                                    )
+                                    text = transcript.text.strip()
+                                except Exception as e:
+                                    log(f"  Transcription error: {e}")
+                                    text = None
+
+                                if text:
+                                    log(
+                                        f"  Text: {text[:100]}{'...' if len(text) > 100 else ''}"
+                                    )
+
+                                    # Output handling
+                                    if output_path:
+                                        if output_is_dir:
+                                            # Each segment to a new file
+                                            segment_file = generate_timestamp_filename(
+                                                output_path
+                                            )
+                                            with open(
+                                                segment_file, "w", encoding="utf-8"
+                                            ) as f:
+                                                f.write(text)
+                                            log(f"  Saved to: {segment_file}")
+                                        else:
+                                            # Append to single file
+                                            append_transcript_to_file(
+                                                output_path, text, timestamp
+                                            )
+                                            log(f"  Appended to: {output_path}")
+                                    else:
+                                        # Print to stdout
+                                        print(f"[{timestamp}] {text}")
+                                else:
+                                    log("  (No speech detected)")
+                            else:
+                                log("  (Silent audio, skipping)")
+                        finally:
+                            if os.path.exists(temp_filename):
+                                os.remove(temp_filename)
+
+                    last_transcribe_time = current_time
+
+            # Handle remaining audio after stop signal
+            with chunk_lock:
+                if audio_chunks:
+                    recording = np.concatenate(audio_chunks)
+                    audio_chunks.clear()
+                else:
+                    recording = None
+
+            if recording is not None and recording.size > 0:
+                segment_count += 1
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                log(
+                    f"\n[Final Segment {segment_count}] Transcribing remaining audio..."
+                )
+
+                with tempfile.NamedTemporaryFile(
+                    suffix=".wav", delete=False
+                ) as tmpfile:
+                    temp_filename = tmpfile.name
+
+                try:
+                    max_val = np.max(np.abs(recording))
+                    if max_val > 0 and not np.isnan(max_val):
+                        normalized = recording / max_val
+                        audio_int16 = np.int16(normalized * 32767)
+                        write_wav(temp_filename, fs, audio_int16)
+
+                        try:
+                            transcript = transcribe_audio(
+                                temp_filename,
+                                api_key,
+                                api_base_url,
+                                model_name,
+                                org_id=org_id,
+                                raise_on_error=True,
+                            )
+                            text = transcript.text.strip()
+                        except Exception as e:
+                            log(f"  Transcription error: {e}")
+                            text = None
+
+                        if text:
+                            log(
+                                f"  Text: {text[:100]}{'...' if len(text) > 100 else ''}"
+                            )
+                            if output_path:
+                                if output_is_dir:
+                                    segment_file = generate_timestamp_filename(
+                                        output_path
+                                    )
+                                    with open(segment_file, "w", encoding="utf-8") as f:
+                                        f.write(text)
+                                    log(f"  Saved to: {segment_file}")
+                                else:
+                                    append_transcript_to_file(
+                                        output_path, text, timestamp
+                                    )
+                                    log(f"  Appended to: {output_path}")
+                            else:
+                                print(f"[{timestamp}] {text}")
+                finally:
+                    if os.path.exists(temp_filename):
+                        os.remove(temp_filename)
+
+    except Exception as e:
+        print(f"An error occurred during continuous recording: {e}")
+        sys.exit(1)
+
+    log(f"\nContinuous recording stopped. Total segments: {segment_count}")
 
 
 def process_recording(
@@ -575,6 +828,17 @@ def main():
         action="store_true",
         help="Open the configuration file in the system's default editor.",
     )
+    parser.add_argument(
+        "--daemon",
+        action="store_true",
+        help="Run in continuous recording mode with automatic transcription.",
+    )
+    parser.add_argument(
+        "--interval",
+        type=int,
+        default=30,
+        help="Transcription interval in seconds for daemon mode. Default is 30.",
+    )
 
     args = parser.parse_args()
 
@@ -655,26 +919,47 @@ def main():
 
     fs = 44100  # Sample rate
 
-    # Set up signal handlers
-    setup_signal_handlers()
+    # Check for daemon mode
+    if args.daemon:
+        # Set up signal handlers for daemon mode (single Ctrl+C to exit)
+        setup_signal_handlers(daemon_mode=True)
 
-    log(
-        "Press Ctrl+C\n   - once, to stop recording and transcribe\n   - twice, to exit the program"
-    )
+        if not args.output:
+            log(
+                "Warning: No output file specified. Transcriptions will be printed to stdout."
+            )
 
-    # Process the recording
-    process_recording(
-        fs=fs,
-        duration=args.duration,
-        api_key=api_key,
-        api_base_url=api_base_url,
-        org_id=org_id,
-        model_name=model_name,
-        use_stdin=args.stdin,
-        input_file=args.input,
-        output_file=args.output,
-        audio_device=audio_device,
-    )
+        continuous_recording(
+            fs=fs,
+            interval=args.interval,
+            api_key=api_key,
+            api_base_url=api_base_url,
+            model_name=model_name,
+            org_id=org_id,
+            output_path=args.output,
+            audio_device=audio_device,
+        )
+    else:
+        # Set up signal handlers for normal mode (double Ctrl+C to exit)
+        setup_signal_handlers(daemon_mode=False)
+
+        log(
+            "Press Ctrl+C\n   - once, to stop recording and transcribe\n   - twice, to exit the program"
+        )
+
+        # Process the recording
+        process_recording(
+            fs=fs,
+            duration=args.duration,
+            api_key=api_key,
+            api_base_url=api_base_url,
+            org_id=org_id,
+            model_name=model_name,
+            use_stdin=args.stdin,
+            input_file=args.input,
+            output_file=args.output,
+            audio_device=audio_device,
+        )
 
 
 if __name__ == "__main__":
