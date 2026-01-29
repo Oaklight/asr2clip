@@ -6,7 +6,7 @@ import time
 
 import numpy as np
 
-from .audio import get_audio_duration, save_audio
+from .audio import calculate_rms, get_audio_duration, save_audio
 from .output import output_transcript
 from .transcribe import TranscriptionError, transcribe_audio
 from .utils import is_stop_requested, log, setup_signal_handlers
@@ -25,6 +25,7 @@ def continuous_recording(
     vad_enabled: bool = False,
     silence_threshold: float = 0.01,
     silence_duration: float = 1.5,
+    adaptive_threshold: bool = False,
 ):
     """Run continuous recording mode with periodic transcription.
 
@@ -44,6 +45,7 @@ def continuous_recording(
         vad_enabled: Enable voice activity detection.
         silence_threshold: RMS threshold for silence detection.
         silence_duration: Duration of silence to trigger transcription.
+        adaptive_threshold: Enable adaptive threshold based on ambient noise.
     """
     import sounddevice as sd
 
@@ -51,7 +53,10 @@ def continuous_recording(
 
     if vad_enabled:
         log(f"Starting continuous recording with VAD (silence: {silence_duration}s)")
-        log(f"Silence threshold: {silence_threshold:.4f}")
+        if adaptive_threshold:
+            log(f"Adaptive threshold enabled (base: {silence_threshold:.4f})")
+        else:
+            log(f"Silence threshold: {silence_threshold:.4f}")
     else:
         log(f"Starting continuous recording mode (interval: {interval}s)")
     log("Press Ctrl+C to stop")
@@ -68,6 +73,7 @@ def continuous_recording(
             sample_rate=sample_rate,
             silence_threshold=silence_threshold,
             silence_duration=silence_duration,
+            adaptive=adaptive_threshold,
         )
 
     should_transcribe = threading.Event()
@@ -100,6 +106,16 @@ def continuous_recording(
         duration = get_audio_duration(audio_data, sample_rate)
         if duration < 0.5:
             log("Audio too short, skipping...")
+            return
+
+        # Check if audio has any sound (skip silent recordings)
+        rms = calculate_rms(audio_data)
+        current_threshold = vad.get_current_threshold() if vad else silence_threshold
+        if rms < current_threshold:
+            log(
+                f"Audio is silent (RMS: {rms:.4f} < {current_threshold:.4f}), skipping API call..."
+            )
+            last_transcribe_time = time.time()
             return
 
         log(f"Transcribing {duration:.1f}s of audio ({reason})...")

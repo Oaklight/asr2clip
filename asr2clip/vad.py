@@ -11,6 +11,7 @@ from .utils import log
 DEFAULT_SILENCE_THRESHOLD = 0.01  # RMS threshold for silence
 DEFAULT_SILENCE_DURATION = 1.5  # Seconds of silence to trigger transcription
 DEFAULT_MIN_SPEECH_DURATION = 0.5  # Minimum speech duration to transcribe
+DEFAULT_ADAPTIVE_WINDOW = 5.0  # Seconds of audio to use for adaptive threshold
 
 
 class VoiceActivityDetector:
@@ -18,6 +19,8 @@ class VoiceActivityDetector:
 
     Detects silence in audio stream and triggers transcription when
     speech is followed by a period of silence.
+
+    Supports adaptive threshold that adjusts based on ambient noise levels.
     """
 
     def __init__(
@@ -26,6 +29,8 @@ class VoiceActivityDetector:
         silence_threshold: float = DEFAULT_SILENCE_THRESHOLD,
         silence_duration: float = DEFAULT_SILENCE_DURATION,
         min_speech_duration: float = DEFAULT_MIN_SPEECH_DURATION,
+        adaptive: bool = False,
+        adaptive_window: float = DEFAULT_ADAPTIVE_WINDOW,
     ):
         """Initialize the VAD.
 
@@ -34,22 +39,71 @@ class VoiceActivityDetector:
             silence_threshold: RMS threshold below which audio is considered silence.
             silence_duration: Duration of silence (seconds) to trigger transcription.
             min_speech_duration: Minimum speech duration (seconds) to transcribe.
+            adaptive: Enable adaptive threshold based on ambient noise.
+            adaptive_window: Window size (seconds) for adaptive threshold calculation.
         """
         self.sample_rate = sample_rate
         self.silence_threshold = silence_threshold
+        self.base_threshold = silence_threshold
         self.silence_duration = silence_duration
         self.min_speech_duration = min_speech_duration
+        self.adaptive = adaptive
+        self.adaptive_window = adaptive_window
 
         # State
         self.silence_samples = 0
         self.speech_samples = 0
         self.is_speaking = False
 
+        # Adaptive threshold state
+        self.rms_history = []
+        self.max_history_samples = int(
+            adaptive_window * sample_rate / 1024
+        )  # ~1024 samples per chunk
+
     def reset(self):
-        """Reset the VAD state."""
+        """Reset the VAD state (keeps adaptive threshold history)."""
         self.silence_samples = 0
         self.speech_samples = 0
         self.is_speaking = False
+
+    def reset_adaptive(self):
+        """Reset adaptive threshold history."""
+        self.rms_history = []
+        self.silence_threshold = self.base_threshold
+
+    def update_adaptive_threshold(self, rms: float):
+        """Update adaptive threshold based on recent RMS values.
+
+        Uses the lower percentile of recent RMS values as the noise floor,
+        then sets threshold slightly above it.
+
+        Args:
+            rms: Current RMS value.
+        """
+        if not self.adaptive:
+            return
+
+        self.rms_history.append(rms)
+
+        # Keep only recent history
+        if len(self.rms_history) > self.max_history_samples:
+            self.rms_history = self.rms_history[-self.max_history_samples :]
+
+        # Need enough samples for reliable estimate
+        if len(self.rms_history) < 10:
+            return
+
+        # Use 20th percentile as noise floor estimate
+        sorted_rms = sorted(self.rms_history)
+        noise_floor_idx = int(len(sorted_rms) * 0.2)
+        noise_floor = sorted_rms[noise_floor_idx]
+
+        # Set threshold at 2x noise floor, but not below base threshold
+        new_threshold = max(noise_floor * 2.0, self.base_threshold * 0.5)
+
+        # Smooth the threshold update
+        self.silence_threshold = 0.9 * self.silence_threshold + 0.1 * new_threshold
 
     def calculate_rms(self, audio_chunk: np.ndarray) -> float:
         """Calculate RMS of audio chunk.
@@ -80,6 +134,9 @@ class VoiceActivityDetector:
         chunk_samples = (
             len(audio_chunk.flatten()) if audio_chunk.ndim > 1 else len(audio_chunk)
         )
+
+        # Update adaptive threshold
+        self.update_adaptive_threshold(rms)
 
         if rms > self.silence_threshold:
             # Speech detected
@@ -120,6 +177,14 @@ class VoiceActivityDetector:
             Silence duration in seconds.
         """
         return self.silence_samples / self.sample_rate
+
+    def get_current_threshold(self) -> float:
+        """Get the current silence threshold.
+
+        Returns:
+            Current silence threshold (may differ from initial if adaptive).
+        """
+        return self.silence_threshold
 
 
 def calibrate_silence_threshold(

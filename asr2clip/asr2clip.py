@@ -301,9 +301,9 @@ Examples:
     )
 
     parser.add_argument(
-        "--auto_calibrate",
+        "--adaptive",
         action="store_true",
-        help="Auto-calibrate silence threshold before starting daemon mode",
+        help="Enable adaptive threshold that adjusts to ambient noise on-the-fly",
     )
 
     args = parser.parse_args()
@@ -350,14 +350,6 @@ Examples:
     if args.daemon:
         api_key, api_base_url, model_name, org_id = get_api_config(config)
 
-        # Auto-calibrate if requested
-        silence_threshold = args.silence_threshold
-        if args.auto_calibrate and args.vad:
-            from .vad import calibrate_silence_threshold
-
-            silence_threshold = calibrate_silence_threshold(device=device)
-            log(f"Using calibrated threshold: {silence_threshold:.4f}")
-
         continuous_recording(
             api_key=api_key,
             api_base_url=api_base_url,
@@ -367,8 +359,9 @@ Examples:
             interval=args.interval,
             output_file=args.output,
             vad_enabled=args.vad,
-            silence_threshold=silence_threshold,
+            silence_threshold=args.silence_threshold,
             silence_duration=args.silence_duration,
+            adaptive_threshold=args.adaptive,
         )
         return
 
