@@ -65,7 +65,7 @@ pip install -e .
 asr2clip --edit  # 在默认编辑器中打开配置文件
 ```
 
-如果配置文件不存在，将自动在 `~/.config/asr2clip.conf` 创建。
+如果配置文件不存在，将自动在 `~/.config/asr2clip/config.yaml` 创建。
 
 ### 配置文件
 
@@ -81,7 +81,9 @@ model_name: "whisper-1"                     # 或其他兼容的模型
 
 配置文件搜索位置（按顺序）：
 1. `./asr2clip.conf`（当前目录）
-2. `~/.config/asr2clip.conf`
+2. `~/.config/asr2clip/config.yaml`
+3. `~/.config/asr2clip.conf`（旧版）
+4. `~/.asr2clip.conf`（旧版）
 
 ### 测试配置
 
@@ -116,81 +118,84 @@ audio_device: "pulse"  # 或设备索引如 12
 
 ```bash
 asr2clip                   # 录音直到 Ctrl+C，转录，复制到剪贴板
-asr2clip -d 10             # 录音 10 秒
+asr2clip --vad             # 持续录音，语音检测自动转录
 asr2clip -i audio.mp3      # 转录音频文件
 ```
 
 ### 命令行选项
 
 ```
-用法: asr2clip [-h] [-v] [-c CONFIG] [-d DURATION] [--stdin] [-i INPUT] [-q]
-               [--generate_config] [-o OUTPUT] [--test] [--list_devices]
-               [--device DEVICE] [-e] [--daemon] [--interval INTERVAL]
+用法: asr2clip [-h] [-v] [-c FILE] [-q] [-i FILE] [-o FILE] [--test]
+               [--list_devices] [--device DEV] [-e] [--generate_config]
+               [--print_config] [--vad] [--interval SEC] [--adaptive]
+               [--calibrate] [--silence_threshold RMS]
+               [--silence_duration SEC] [--no_adaptive]
 
-实时语音识别工具，将转录文本复制到剪贴板。
+录音并使用 ASR API 转录到剪贴板
 
 选项:
   -h, --help            显示帮助信息并退出
   -v, --version         显示程序版本号并退出
-  -c CONFIG, --config CONFIG
-                        配置文件路径。默认为 'asr2clip.conf'。
-  -d DURATION, --duration DURATION
-                        录音时长（秒）。如未指定，录音将持续到按下 Ctrl+C。
-  --stdin               从 stdin 读取音频数据而非录音。
-  -i INPUT, --input INPUT
-                        要转录的音频文件路径。
-  -q, --quiet           禁用日志输出。
-  --generate_config     打印配置模板并退出。
-  -o OUTPUT, --output OUTPUT
-                        输出文件路径。如未指定，输出将复制到剪贴板。
-                        使用 '-' 输出到 stdout。
-  --test                测试完整配置（API、音频设备、剪贴板）并退出。
-  --list_devices        列出可用的音频输入设备并退出。
-  --device DEVICE       音频输入设备（名称或索引）。覆盖配置文件设置。
-  -e, --edit            在系统默认编辑器中打开配置文件。
-  --daemon              以持续录音模式运行，自动转录。
-  --interval INTERVAL   守护模式下的转录间隔（秒）。默认为 30。
+  -c FILE, --config FILE
+                        配置文件路径
+  -q, --quiet           安静模式 - 仅输出转录结果和错误
+  -i FILE, --input FILE
+                        转录音频文件而非录音
+  -o FILE, --output FILE
+                        将转录结果追加到文件
+  --test                测试 API 配置并退出
+  --list_devices        列出可用的音频输入设备
+  --device DEV          音频输入设备（名称或索引）
+  -e, --edit            在编辑器中打开配置文件
+  --generate_config     在 ~/.config/asr2clip/config.yaml 创建配置文件
+  --print_config        打印配置模板到 stdout
+  --vad                 持续录音，启用语音活动检测
+  --interval SEC        持续录音，固定间隔转录（秒）
+  --adaptive            自适应阈值（使用 --vad 时默认启用）
+  --calibrate           从环境噪音校准静音阈值
+  --silence_threshold RMS
+                        静音阈值（默认：自适应自动调整）
+  --silence_duration SEC
+                        触发转录的静音时长（默认：1.5）
+  --no_adaptive         禁用自适应阈值（使用固定阈值）
 ```
 
 ### 示例
 
 ```bash
-# 录音 5 秒
-asr2clip --duration 5
+# 单次录音（按 Ctrl+C 停止）
+asr2clip
 
 # 转录音频文件
-asr2clip --input recording.mp3
+asr2clip -i recording.mp3
 
-# 输出到 stdout 而不是剪贴板
-asr2clip --output -
-
-# 管道输入音频数据
-cat audio.wav | asr2clip --stdin --output -
+# 保存转录结果到文件
+asr2clip -o transcript.txt
 
 # 使用指定音频设备
 asr2clip --device pulse
 ```
 
-### 持续录音（守护模式）
+### 持续录音模式
 
-适用于会议、讲座等长时间录音场景：
+适用于会议、讲座等长时间录音场景，使用 `--vad` 或 `--interval`：
 
 ```bash
-# 持续录音，每 30 秒转录一次，追加到文件
-asr2clip --daemon --interval 30 -o ~/meeting.txt --device pulse
+# 持续录音，语音活动检测（静音时自动转录）
+asr2clip --vad -o ~/meeting.txt
 
-# 持续录音，每段保存为独立文件
-asr2clip --daemon --interval 60 -o ~/transcripts/ --device pulse
+# 持续录音，固定间隔（每 60 秒转录一次）
+asr2clip --interval 60 -o ~/meeting.txt
 
-# 持续录音，输出到 stdout
-asr2clip --daemon --interval 30 --device pulse
+# 结合 VAD 和最大间隔
+asr2clip --vad --interval 120 -o ~/meeting.txt
 ```
 
-守护模式特点：
+持续模式特点：
 - 持续录音
-- 按设定间隔自动转录
+- 自动转录（静音时或达到间隔时）
 - 按一次 Ctrl+C 停止（退出前会转录剩余音频）
-- 输出可以是单个文件（追加模式）或目录（独立文件）
+- 转录结果带时间戳追加到输出文件
 
 ### 语音活动检测（VAD）
 

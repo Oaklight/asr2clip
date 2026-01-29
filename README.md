@@ -65,7 +65,7 @@ The easiest way to configure asr2clip is using the built-in editor:
 asr2clip --edit  # Opens config file in your default editor
 ```
 
-This will create a config file at `~/.config/asr2clip.conf` if it doesn't exist.
+This will create a config file at `~/.config/asr2clip/config.yaml` if it doesn't exist.
 
 ### Configuration File
 
@@ -81,7 +81,9 @@ model_name: "whisper-1"                     # or other compatible model
 
 Config file locations (searched in order):
 1. `./asr2clip.conf` (current directory)
-2. `~/.config/asr2clip.conf`
+2. `~/.config/asr2clip/config.yaml`
+3. `~/.config/asr2clip.conf` (legacy)
+4. `~/.asr2clip.conf` (legacy)
 
 ### Test Your Configuration
 
@@ -116,88 +118,84 @@ audio_device: "pulse"  # or device index like 12
 
 ```bash
 asr2clip                   # Record until Ctrl+C, transcribe, copy to clipboard
-asr2clip -d 10             # Record for 10 seconds
+asr2clip --vad             # Continuous recording with voice detection
 asr2clip -i audio.mp3      # Transcribe an audio file
 ```
 
 ### CLI Options
 
 ```
-usage: asr2clip [-h] [-v] [-c CONFIG] [-d DURATION] [--stdin] [-i INPUT] [-q]
-                [--generate_config] [-o OUTPUT] [--test] [--list_devices]
-                [--device DEVICE] [-e] [--daemon] [--interval INTERVAL]
+usage: asr2clip [-h] [-v] [-c FILE] [-q] [-i FILE] [-o FILE] [--test]
+                [--list_devices] [--device DEV] [-e] [--generate_config]
+                [--print_config] [--vad] [--interval SEC] [--adaptive]
+                [--calibrate] [--silence_threshold RMS]
+                [--silence_duration SEC] [--no_adaptive]
 
-Real-time speech recognizer that copies transcribed text to the clipboard.
+Record audio and transcribe to clipboard using ASR API
 
 options:
   -h, --help            show this help message and exit
-  -v, --version         Show program version and exit.
-  -c CONFIG, --config CONFIG
-                        Path to the configuration file. Default is
-                        'asr2clip.conf'.
-  -d DURATION, --duration DURATION
-                        Duration to record (seconds). If not specified,
-                        recording continues until Ctrl+C.
-  --stdin               Read audio data from stdin instead of recording.
-  -i INPUT, --input INPUT
-                        Path to the input audio file to transcribe.
-  -q, --quiet           Disable logging.
-  --generate_config     Print the template configuration file and exit.
-  -o OUTPUT, --output OUTPUT
-                        Path to the output file. If not specified, output will
-                        be copied to the clipboard. Use '-' for stdout.
-  --test                Test the full configuration (API, audio device,
-                        clipboard) and exit.
-  --list_devices        List available audio input devices and exit.
-  --device DEVICE       Audio input device (name or index). Overrides config
-                        file setting.
-  -e, --edit            Open the configuration file in the system's default
-                        editor.
-  --daemon              Run in continuous recording mode with automatic
-                        transcription.
-  --interval INTERVAL   Transcription interval in seconds for daemon mode.
-                        Default is 30.
+  -v, --version         show program's version number and exit
+  -c FILE, --config FILE
+                        Path to configuration file
+  -q, --quiet           Quiet mode - only output transcription and errors
+  -i FILE, --input FILE
+                        Transcribe audio file instead of recording
+  -o FILE, --output FILE
+                        Append transcripts to file
+  --test                Test API configuration and exit
+  --list_devices        List available audio input devices
+  --device DEV          Audio input device (name or index)
+  -e, --edit            Open configuration file in editor
+  --generate_config     Create config file at ~/.config/asr2clip/config.yaml
+  --print_config        Print template configuration to stdout
+  --vad                 Continuous recording with voice activity detection
+  --interval SEC        Continuous recording with fixed interval (seconds)
+  --adaptive            Adaptive threshold (default when --vad is used)
+  --calibrate           Calibrate silence threshold from ambient noise
+  --silence_threshold RMS
+                        Silence threshold (default: auto with adaptive)
+  --silence_duration SEC
+                        Silence duration to trigger transcription (default: 1.5)
+  --no_adaptive         Disable adaptive threshold (use fixed threshold)
 ```
 
 ### Examples
 
 ```bash
-# Record for 5 seconds
-asr2clip --duration 5
+# Single recording (press Ctrl+C to stop)
+asr2clip
 
 # Transcribe an audio file
-asr2clip --input recording.mp3
+asr2clip -i recording.mp3
 
-# Output to stdout instead of clipboard
-asr2clip --output -
-
-# Pipe audio data
-cat audio.wav | asr2clip --stdin --output -
+# Save transcript to file
+asr2clip -o transcript.txt
 
 # Use specific audio device
 asr2clip --device pulse
 ```
 
-### Continuous Recording (Daemon Mode)
+### Continuous Recording Mode
 
-For long recordings like meetings or lectures:
+For long recordings like meetings or lectures, use `--vad` or `--interval`:
 
 ```bash
-# Record continuously, transcribe every 30 seconds, append to file
-asr2clip --daemon --interval 30 -o ~/meeting.txt --device pulse
+# Continuous with voice activity detection (auto-transcribe on silence)
+asr2clip --vad -o ~/meeting.txt
 
-# Record continuously, save each segment as separate file
-asr2clip --daemon --interval 60 -o ~/transcripts/ --device pulse
+# Continuous with fixed interval (transcribe every 60 seconds)
+asr2clip --interval 60 -o ~/meeting.txt
 
-# Record continuously, output to stdout
-asr2clip --daemon --interval 30 --device pulse
+# Combine VAD with max interval
+asr2clip --vad --interval 120 -o ~/meeting.txt
 ```
 
-In daemon mode:
+In continuous mode:
 - Audio is recorded continuously
-- Transcription happens automatically at each interval
+- Transcription happens automatically (on silence or at interval)
 - Press Ctrl+C once to stop (transcribes remaining audio before exit)
-- Output can be a single file (append mode) or a directory (separate files)
+- Transcripts are appended to the output file with timestamps
 
 ### Voice Activity Detection (VAD)
 
