@@ -9,6 +9,7 @@ import numpy as np
 from .audio import calculate_rms, get_audio_duration, save_audio
 from .output import output_transcript
 from .transcribe import TranscriptionError, transcribe_audio
+from .logging import CYAN, GREEN, RESET, YELLOW
 from .utils import (
     info,
     is_stop_requested,
@@ -140,12 +141,15 @@ def continuous_recording(
                 last_transcribe_time = time.time()
                 return
 
-        log(f"Transcribing {duration:.1f}s of audio ({reason})...")
+        # Show recording complete indicator
+        print(f"{CYAN}●{RESET} Recording {duration:.1f}s → ", end="", flush=True)
 
         # Save to temp file
         temp_path = save_audio(audio_data, sample_rate)
 
         try:
+            print(f"{YELLOW}⟳{RESET} Sending...", end="", flush=True)
+
             text = transcribe_audio(
                 temp_path,
                 api_key,
@@ -156,6 +160,7 @@ def continuous_recording(
             )
 
             if text.strip():
+                print(f"\r{GREEN}✓{RESET} {duration:.1f}s transcribed" + " " * 20)
                 output_transcript(
                     text,
                     to_clipboard=True,
@@ -163,10 +168,10 @@ def continuous_recording(
                     to_file=output_file,
                 )
             else:
-                log("(No speech detected)")
+                print(f"\r{YELLOW}○{RESET} {duration:.1f}s (no speech)" + " " * 20)
 
         except TranscriptionError as e:
-            log(f"Transcription failed: {e}")
+            print(f"\r{RESET}✗ Failed: {e}" + " " * 20)
 
         finally:
             # Clean up temp file

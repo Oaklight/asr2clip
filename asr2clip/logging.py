@@ -77,6 +77,17 @@ def supports_color() -> bool:
 # Global color support flag
 _color_enabled = supports_color()
 
+# Convenience color constants for direct use
+RESET = Colors.RESET if _color_enabled else ""
+RED = Colors.RED if _color_enabled else ""
+GREEN = Colors.GREEN if _color_enabled else ""
+YELLOW = Colors.YELLOW if _color_enabled else ""
+BLUE = Colors.BLUE if _color_enabled else ""
+CYAN = Colors.CYAN if _color_enabled else ""
+MAGENTA = Colors.MAGENTA if _color_enabled else ""
+DIM = Colors.DIM if _color_enabled else ""
+BOLD = Colors.BOLD if _color_enabled else ""
+
 
 def set_color_enabled(enabled: bool):
     """Enable or disable color output.

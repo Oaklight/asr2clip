@@ -6,7 +6,7 @@ import time
 
 import httpx
 
-from .utils import error, info, print_error, print_key_value, print_success, warning
+from .utils import error, print_error, print_key_value, print_success, warning
 
 
 class TranscriptionError(Exception):
@@ -72,10 +72,8 @@ def transcribe_audio(
                 }
                 data = {"model": model_name}
 
-                if attempt == 0:
-                    info(f"Sending request to {url}...")
-                else:
-                    info(f"Retry {attempt}/{max_retries}: Sending request to {url}...")
+                # Logging is now handled by daemon.py with colored indicators
+                pass
 
                 with httpx.Client(timeout=timeout) as client:
                     response = client.post(url, headers=headers, files=files, data=data)
