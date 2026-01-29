@@ -182,19 +182,26 @@ def main():
         description="Record audio and transcribe to clipboard using ASR API",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Examples:
-  asr2clip                      # Record and transcribe
-  asr2clip --test               # Test API configuration
-  asr2clip --list_devices       # List audio devices
-  asr2clip --device pulse       # Use specific audio device
-  asr2clip --daemon             # Continuous recording mode
-  asr2clip --daemon --interval 60  # Transcribe every 60 seconds
-  asr2clip --daemon --vad       # Auto-transcribe on silence
-  asr2clip -i audio.mp3         # Transcribe existing file
-  asr2clip --edit               # Edit configuration file
+Modes:
+  asr2clip                         # Single recording (Ctrl+C to stop)
+  asr2clip --vad                   # Continuous with voice detection
+  asr2clip --interval 60           # Continuous with fixed interval
+  asr2clip -i audio.mp3            # Transcribe existing file
+
+With output file:
+  asr2clip --vad -o meeting.txt    # Save transcripts to file
+  asr2clip -i audio.mp3 -o out.txt # Transcribe file and save
+
+Setup:
+  asr2clip --edit                  # Create/edit configuration
+  asr2clip --generate_config       # Create new config file
+  asr2clip --test                  # Test API connection
+  asr2clip --list_devices          # List audio devices
+  asr2clip --calibrate             # Calibrate silence threshold
 """,
     )
 
+    # Basic options
     parser.add_argument(
         "-v",
         "--version",
@@ -205,6 +212,7 @@ Examples:
     parser.add_argument(
         "-c",
         "--config",
+        metavar="FILE",
         help="Path to configuration file",
         default=None,
     )
@@ -216,20 +224,24 @@ Examples:
         help="Quiet mode - only output transcription and errors",
     )
 
+    # Input/Output
     parser.add_argument(
         "-i",
         "--input",
-        help="Input audio file to transcribe (instead of recording)",
+        metavar="FILE",
+        help="Transcribe audio file instead of recording",
         default=None,
     )
 
     parser.add_argument(
         "-o",
         "--output",
-        help="Output file to append transcripts to",
+        metavar="FILE",
+        help="Append transcripts to file",
         default=None,
     )
 
+    # Setup commands
     parser.add_argument(
         "--test",
         action="store_true",
@@ -244,6 +256,7 @@ Examples:
 
     parser.add_argument(
         "--device",
+        metavar="DEV",
         help="Audio input device (name or index)",
         default=None,
     )
@@ -258,40 +271,34 @@ Examples:
     parser.add_argument(
         "--generate_config",
         action="store_true",
-        help="Print template configuration to stdout",
+        help="Create config file at ~/.config/asr2clip/config.yaml",
     )
 
     parser.add_argument(
-        "--daemon",
+        "--print_config",
         action="store_true",
-        help="Run in continuous recording mode",
+        help="Print template configuration to stdout",
+    )
+
+    # Continuous recording modes
+    parser.add_argument(
+        "--vad",
+        action="store_true",
+        help="Continuous recording with voice activity detection",
     )
 
     parser.add_argument(
         "--interval",
         type=float,
-        default=30.0,
-        help="Transcription interval in seconds for daemon mode (default: 30)",
+        metavar="SEC",
+        default=None,
+        help="Continuous recording with fixed interval (seconds)",
     )
 
     parser.add_argument(
-        "--vad",
+        "--adaptive",
         action="store_true",
-        help="Enable voice activity detection (auto-transcribe on silence)",
-    )
-
-    parser.add_argument(
-        "--silence_threshold",
-        type=float,
-        default=0.01,
-        help="RMS threshold for silence detection (default: 0.01)",
-    )
-
-    parser.add_argument(
-        "--silence_duration",
-        type=float,
-        default=1.5,
-        help="Silence duration in seconds to trigger transcription (default: 1.5)",
+        help="Adaptive threshold (default when --vad is used)",
     )
 
     parser.add_argument(
@@ -301,14 +308,58 @@ Examples:
     )
 
     parser.add_argument(
-        "--adaptive",
+        "--silence_threshold",
+        type=float,
+        metavar="RMS",
+        default=None,  # None means auto (use adaptive)
+        help="Silence threshold (default: auto with adaptive)",
+    )
+
+    parser.add_argument(
+        "--silence_duration",
+        type=float,
+        metavar="SEC",
+        default=1.5,
+        help="Silence duration to trigger transcription (default: 1.5)",
+    )
+
+    parser.add_argument(
+        "--no_adaptive",
         action="store_true",
-        help="Enable adaptive threshold that adjusts to ambient noise on-the-fly",
+        help="Disable adaptive threshold (use fixed threshold)",
     )
 
     args = parser.parse_args()
 
-    # Handle --generate_config
+    # Determine if continuous mode is enabled
+    continuous_mode = args.vad or args.interval is not None
+
+    # Validate option combinations
+    if args.adaptive and not args.vad:
+        print("Error: --adaptive requires --vad")
+        sys.exit(1)
+
+    if args.no_adaptive and not args.vad:
+        print("Error: --no_adaptive requires --vad")
+        sys.exit(1)
+
+    # Auto-enable adaptive when VAD is used, unless user specified threshold or --no_adaptive
+    if args.vad and not args.no_adaptive and args.silence_threshold is None:
+        args.adaptive = True
+
+    # Set default threshold if not specified
+    if args.silence_threshold is None:
+        args.silence_threshold = 0.01
+
+    # Set default interval for continuous mode
+    if args.interval is None:
+        args.interval = 30.0
+
+    # Handle --generate_config and --print_config
+    if args.print_config:
+        generate_config(print_only=True)
+        return
+
     if args.generate_config:
         generate_config()
         return
@@ -346,8 +397,8 @@ Examples:
         print(f"\nUse this threshold with: --silence_threshold {threshold:.4f}")
         return
 
-    # Handle --daemon mode
-    if args.daemon:
+    # Handle continuous recording mode (--vad or --interval)
+    if continuous_mode:
         api_key, api_base_url, model_name, org_id = get_api_config(config)
 
         continuous_recording(

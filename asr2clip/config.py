@@ -6,11 +6,16 @@ import sys
 
 import yaml
 
-# Default paths to search for config file
+# Default paths to search for config file (in order of priority)
 CONFIG_PATHS = [
-    "asr2clip.conf",
-    os.path.expanduser("~/.config/asr2clip.conf"),
+    "asr2clip.conf",  # Current directory
+    os.path.expanduser("~/.config/asr2clip/config.yaml"),  # XDG style
+    os.path.expanduser("~/.config/asr2clip.conf"),  # Legacy
+    os.path.expanduser("~/.asr2clip.conf"),  # Home directory
 ]
+
+# Default config location for new configs
+DEFAULT_CONFIG_PATH = os.path.expanduser("~/.config/asr2clip/config.yaml")
 
 # Default config template
 CONFIG_TEMPLATE = """api_base_url: "https://api.openai.com/v1/"  # or other compatible API base URL
@@ -77,11 +82,13 @@ def read_config(config_file: str) -> dict:
     config_path = find_config_path(config_file)
 
     if config_path is None:
-        user_config_path = os.path.expanduser("~/.config/asr2clip.conf")
-        print(f"Configuration file not found: {config_file} or {user_config_path}")
-        print("\nTo generate a template configuration file, run:")
-        print("    asr2clip --generate_config > ~/.config/asr2clip.conf")
-        print("\nOr edit the config file directly:")
+        print("Configuration file not found.")
+        print("\nSearched locations:")
+        for path in CONFIG_PATHS:
+            print(f"  - {path}")
+        print("\nTo create a new configuration file, run:")
+        print("    asr2clip --generate_config")
+        print("\nOr create and edit directly:")
         print("    asr2clip --edit")
         sys.exit(1)
 
@@ -110,8 +117,10 @@ def open_in_editor(config_file: str = None):
 
     # If no config exists, create a default one
     if config_path is None:
-        config_path = os.path.expanduser("~/.config/asr2clip.conf")
-        os.makedirs(os.path.dirname(config_path), exist_ok=True)
+        config_path = DEFAULT_CONFIG_PATH
+        config_dir = os.path.dirname(config_path)
+        if config_dir:
+            os.makedirs(config_dir, exist_ok=True)
 
         with open(config_path, "w") as f:
             f.write(CONFIG_TEMPLATE)
@@ -141,9 +150,48 @@ def open_in_editor(config_file: str = None):
     sys.exit(1)
 
 
-def generate_config():
-    """Print the template configuration for asr2clip.conf."""
-    print(CONFIG_TEMPLATE_FULL.strip())
+def generate_config(
+    output_path: str = None, force: bool = False, print_only: bool = False
+) -> str | None:
+    """Generate a template configuration file.
+
+    Args:
+        output_path: Path to write the config file. If None, uses DEFAULT_CONFIG_PATH.
+        force: If True, overwrite existing file.
+        print_only: If True, print to stdout instead of writing to file.
+
+    Returns:
+        Path to the generated config file, or None if print_only.
+    """
+    if print_only:
+        print(CONFIG_TEMPLATE_FULL.strip())
+        return None
+
+    if output_path is None:
+        output_path = DEFAULT_CONFIG_PATH
+
+    # Check if file already exists
+    if os.path.exists(output_path) and not force:
+        print(f"Config file already exists: {output_path}")
+        print("Use --edit to modify it, or delete it first to regenerate.")
+        return output_path
+
+    # Create directory if needed
+    config_dir = os.path.dirname(output_path)
+    if config_dir:
+        os.makedirs(config_dir, exist_ok=True)
+
+    # Write config file
+    with open(output_path, "w") as f:
+        f.write(CONFIG_TEMPLATE_FULL.strip() + "\n")
+
+    print(f"Created config file: {output_path}")
+    print("\nEdit it with your API credentials:")
+    print("    asr2clip --edit")
+    print("\nOr edit directly:")
+    print(f"    $EDITOR {output_path}")
+
+    return output_path
 
 
 def get_api_config(config: dict) -> tuple[str, str, str, str | None]:
