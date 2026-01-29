@@ -125,7 +125,7 @@ asr2clip -i audio.mp3      # Transcribe an audio file
 ```
 usage: asr2clip [-h] [-v] [-c CONFIG] [-d DURATION] [--stdin] [-i INPUT] [-q]
                 [--generate_config] [-o OUTPUT] [--test] [--list_devices]
-                [--device DEVICE] [-e]
+                [--device DEVICE] [-e] [--daemon] [--interval INTERVAL]
 
 Real-time speech recognizer that copies transcribed text to the clipboard.
 
@@ -153,6 +153,10 @@ options:
                         file setting.
   -e, --edit            Open the configuration file in the system's default
                         editor.
+  --daemon              Run in continuous recording mode with automatic
+                        transcription.
+  --interval INTERVAL   Transcription interval in seconds for daemon mode.
+                        Default is 30.
 ```
 
 ### Examples
@@ -173,6 +177,27 @@ cat audio.wav | asr2clip --stdin --output -
 # Use specific audio device
 asr2clip --device pulse
 ```
+
+### Continuous Recording (Daemon Mode)
+
+For long recordings like meetings or lectures:
+
+```bash
+# Record continuously, transcribe every 30 seconds, append to file
+asr2clip --daemon --interval 30 -o ~/meeting.txt --device pulse
+
+# Record continuously, save each segment as separate file
+asr2clip --daemon --interval 60 -o ~/transcripts/ --device pulse
+
+# Record continuously, output to stdout
+asr2clip --daemon --interval 30 --device pulse
+```
+
+In daemon mode:
+- Audio is recorded continuously
+- Transcription happens automatically at each interval
+- Press Ctrl+C once to stop (transcribes remaining audio before exit)
+- Output can be a single file (append mode) or a directory (separate files)
 
 ## Troubleshooting
 

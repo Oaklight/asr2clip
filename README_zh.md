@@ -125,7 +125,7 @@ asr2clip -i audio.mp3      # 转录音频文件
 ```
 用法: asr2clip [-h] [-v] [-c CONFIG] [-d DURATION] [--stdin] [-i INPUT] [-q]
                [--generate_config] [-o OUTPUT] [--test] [--list_devices]
-               [--device DEVICE] [-e]
+               [--device DEVICE] [-e] [--daemon] [--interval INTERVAL]
 
 实时语音识别工具，将转录文本复制到剪贴板。
 
@@ -148,6 +148,8 @@ asr2clip -i audio.mp3      # 转录音频文件
   --list_devices        列出可用的音频输入设备并退出。
   --device DEVICE       音频输入设备（名称或索引）。覆盖配置文件设置。
   -e, --edit            在系统默认编辑器中打开配置文件。
+  --daemon              以持续录音模式运行，自动转录。
+  --interval INTERVAL   守护模式下的转录间隔（秒）。默认为 30。
 ```
 
 ### 示例
@@ -168,6 +170,27 @@ cat audio.wav | asr2clip --stdin --output -
 # 使用指定音频设备
 asr2clip --device pulse
 ```
+
+### 持续录音（守护模式）
+
+适用于会议、讲座等长时间录音场景：
+
+```bash
+# 持续录音，每 30 秒转录一次，追加到文件
+asr2clip --daemon --interval 30 -o ~/meeting.txt --device pulse
+
+# 持续录音，每段保存为独立文件
+asr2clip --daemon --interval 60 -o ~/transcripts/ --device pulse
+
+# 持续录音，输出到 stdout
+asr2clip --daemon --interval 30 --device pulse
+```
+
+守护模式特点：
+- 持续录音
+- 按设定间隔自动转录
+- 按一次 Ctrl+C 停止（退出前会转录剩余音频）
+- 输出可以是单个文件（追加模式）或目录（独立文件）
 
 ## 故障排除
 
