@@ -30,7 +30,16 @@ from .output import (
     print_clipboard_help,
 )
 from .transcribe import test_transcription, transcribe_audio
-from .utils import log, set_verbose, setup_signal_handlers
+from .utils import (
+    info,
+    log,
+    print_key_value,
+    print_separator,
+    set_verbose,
+    setup_logging,
+    setup_signal_handlers,
+    warning,
+)
 
 
 def test_config(config: dict) -> bool:
@@ -44,11 +53,12 @@ def test_config(config: dict) -> bool:
     """
     api_key, api_base_url, model_name, org_id = get_api_config(config)
 
-    print("Testing configuration...")
-    print(f"  API Base URL: {api_base_url}")
-    print(f"  Model: {model_name}")
-    print(f"  API Key: {'*' * 8}...{api_key[-4:] if len(api_key) > 4 else '****'}")
-    print()
+    info("Testing configuration...")
+    print_key_value("API Base URL", api_base_url)
+    print_key_value("Model", model_name)
+    masked_key = f"{'*' * 8}...{api_key[-4:] if len(api_key) > 4 else '****'}"
+    print_key_value("API Key", masked_key)
+    print_separator()
 
     return test_transcription(api_key, api_base_url, model_name, org_id)
 
@@ -69,7 +79,7 @@ def process_recording(
 
     # Check clipboard support
     if not check_clipboard_support():
-        log("Warning: Clipboard support may not be available.")
+        warning("Clipboard support may not be available.")
         print_clipboard_help()
 
     setup_signal_handlers(daemon_mode=False)
@@ -377,8 +387,9 @@ Setup:
     # Read configuration
     config = read_config(args.config)
 
-    # Set verbose mode
+    # Set up logging
     quiet = args.quiet or config.get("quiet", False)
+    setup_logging(verbose=not quiet)
     set_verbose(not quiet)
 
     # Handle --test

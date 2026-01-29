@@ -5,7 +5,7 @@ Simple energy-based VAD using numpy only (no extra dependencies).
 
 import numpy as np
 
-from .utils import log
+from .utils import info
 
 # Default VAD parameters
 DEFAULT_SILENCE_THRESHOLD = 0.01  # RMS threshold for silence
@@ -207,7 +207,7 @@ def calibrate_silence_threshold(
     """
     import sounddevice as sd
 
-    log(f"Calibrating silence threshold ({duration}s)... Please be quiet.")
+    info(f"Calibrating silence threshold ({duration}s)... Please be quiet.")
 
     # Record ambient noise
     audio = sd.rec(
@@ -225,7 +225,7 @@ def calibrate_silence_threshold(
     # Set threshold slightly above ambient noise
     threshold = rms * 2.0
 
-    log(f"Ambient noise RMS: {rms:.4f}")
-    log(f"Recommended threshold: {threshold:.4f}")
+    info(f"Ambient noise RMS: {rms:.4f}")
+    info(f"Recommended threshold: {threshold:.4f}")
 
     return threshold

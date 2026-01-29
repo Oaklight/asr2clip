@@ -9,7 +9,14 @@ import numpy as np
 from .audio import calculate_rms, get_audio_duration, save_audio
 from .output import output_transcript
 from .transcribe import TranscriptionError, transcribe_audio
-from .utils import is_stop_requested, log, setup_signal_handlers
+from .utils import (
+    info,
+    is_stop_requested,
+    log,
+    print_separator,
+    setup_signal_handlers,
+    warning,
+)
 from .vad import VoiceActivityDetector
 
 
@@ -52,15 +59,15 @@ def continuous_recording(
     setup_signal_handlers(daemon_mode=True)
 
     if vad_enabled:
-        log(f"Starting continuous recording with VAD (silence: {silence_duration}s)")
+        info(f"Starting continuous recording with VAD (silence: {silence_duration}s)")
         if adaptive_threshold:
-            log(f"Adaptive threshold enabled (base: {silence_threshold:.4f})")
+            info(f"Adaptive threshold enabled (base: {silence_threshold:.4f})")
         else:
-            log(f"Silence threshold: {silence_threshold:.4f}")
+            info(f"Silence threshold: {silence_threshold:.4f}")
     else:
-        log(f"Starting continuous recording mode (interval: {interval}s)")
-    log("Press Ctrl+C to stop")
-    log("-" * 40)
+        info(f"Starting continuous recording mode (interval: {interval}s)")
+    info("Press Ctrl+C to stop")
+    print_separator()
 
     audio_chunks = []
     chunks_lock = threading.Lock()
@@ -80,7 +87,7 @@ def continuous_recording(
 
     def audio_callback(indata, frames, time_info, status):
         if status:
-            log(f"Audio status: {status}")
+            warning(f"Audio status: {status}")
         with chunks_lock:
             audio_chunks.append(indata.copy())
 

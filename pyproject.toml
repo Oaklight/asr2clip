@@ -46,9 +46,4 @@ Homepage = "https://github.com/Oaklight/asr2clip"
 asr2clip = "asr2clip.asr2clip:main"
 
 [project.optional-dependencies]
-dev = [
-    "build>=1.0.0",
-    "twine>=5.0.0",
-    "pyright>=1.1.0",
-    "ruff>=0.4.0",
-]
+dev = ["build>=1.0.0", "twine>=5.0.0", "pyright>=1.1.0", "ruff>=0.4.0"]

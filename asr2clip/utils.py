@@ -3,56 +3,67 @@
 import signal
 import sys
 
-# Global state
-verbose = True
+# Import logging functions from the new logging module
+# This provides backward compatibility while using the new structured logging
+from .logging import (
+    debug,
+    error,
+    exception,
+    get_logger,
+    get_verbose,
+    info,
+    log,
+    print_error,
+    print_key_value,
+    print_recording_status,
+    print_separator,
+    print_status,
+    print_success,
+    print_transcribe_status,
+    set_verbose,
+    setup_logging,
+    warning,
+)
+
+# Global state for signal handling
 stop_recording = False
 
-
-def log(message, **kwargs):
-    """Log a message if verbose mode is enabled.
-
-    Args:
-        message: The message to log.
-        **kwargs: Additional keyword arguments passed to print().
-    """
-    global verbose
-    if verbose:
-        if kwargs:
-            print(message, **kwargs)
-        else:
-            print(message)
-
-
-def set_verbose(value: bool):
-    """Set the verbose mode.
-
-    Args:
-        value: True to enable verbose logging, False to disable.
-    """
-    global verbose
-    verbose = value
-
-
-def get_verbose() -> bool:
-    """Get the current verbose mode setting.
-
-    Returns:
-        True if verbose mode is enabled, False otherwise.
-    """
-    return verbose
+# Re-export logging functions for backward compatibility
+__all__ = [
+    "log",
+    "set_verbose",
+    "get_verbose",
+    "setup_logging",
+    "get_logger",
+    "debug",
+    "info",
+    "warning",
+    "error",
+    "exception",
+    "print_status",
+    "print_recording_status",
+    "print_transcribe_status",
+    "print_success",
+    "print_error",
+    "print_separator",
+    "print_key_value",
+    "setup_signal_handlers",
+    "is_stop_requested",
+    "request_stop",
+]
 
 
 def signal_handler(sig, frame):
     """Signal handler for normal mode - first Ctrl+C stops recording."""
     global stop_recording
     stop_recording = True
-    log("\nReceived interrupt signal...", end=" ")
+    info("\nReceived interrupt signal...")
     signal.signal(signal.SIGINT, signal_handler_exit)
 
 
 def signal_handler_exit(sig, frame):
     """Signal handler for second Ctrl+C - exit immediately."""
-    log("\nExiting...")
+    info("\nExiting...")
     sys.exit(0)
 
 
@@ -60,7 +71,7 @@ def signal_handler_daemon(sig, frame):
     """Signal handler for daemon mode - exit immediately on Ctrl+C."""
     global stop_recording
     stop_recording = True
-    log("\nStopping continuous recording...")
+    info("\nStopping continuous recording...")
 
 
 def setup_signal_handlers(daemon_mode: bool = False):

@@ -5,7 +5,7 @@ import shutil
 import sys
 from datetime import datetime
 
-from .utils import log
+from .utils import log, print_success, warning
 
 
 def check_clipboard_support() -> bool:
@@ -52,7 +52,7 @@ def copy_to_clipboard(text: str) -> bool:
         pyperclip.copy(text)
         return True
     except Exception as e:
-        log(f"Clipboard error: {e}")
+        warning(f"Clipboard error: {e}")
         return False
 
 
@@ -108,9 +108,9 @@ def output_transcript(
     """
     if to_clipboard:
         if copy_to_clipboard(text):
-            log("Copied to clipboard")
+            print_success("Copied to clipboard")
         else:
-            log("Failed to copy to clipboard")
+            warning("Failed to copy to clipboard")
 
     if to_stdout:
         print(text)

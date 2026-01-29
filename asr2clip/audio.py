@@ -9,7 +9,7 @@ import numpy as np
 import sounddevice as sd
 from pydub import AudioSegment
 
-from .utils import is_stop_requested, log
+from .utils import is_stop_requested, log, warning
 
 
 def list_audio_devices():
@@ -90,7 +90,7 @@ def record_audio(
 
     def audio_callback(indata, frames, time, status):
         if status:
-            log(f"Audio status: {status}")
+            warning(f"Audio status: {status}")
         chunk = indata.copy()
         audio_chunks.append(chunk)
         if callback:

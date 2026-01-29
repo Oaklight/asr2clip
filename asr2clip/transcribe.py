@@ -5,7 +5,7 @@ import sys
 
 import httpx
 
-from .utils import log
+from .utils import error, info, print_error, print_key_value, print_success
 
 
 class TranscriptionError(Exception):
@@ -56,7 +56,7 @@ def transcribe_audio(
             }
             data = {"model": model_name}
 
-            log(f"Sending request to {url}...")
+            info(f"Sending request to {url}...")
 
             with httpx.Client(timeout=60.0) as client:
                 response = client.post(url, headers=headers, files=files, data=data)
@@ -65,7 +65,7 @@ def transcribe_audio(
                 error_msg = f"API error {response.status_code}: {response.text}"
                 if raise_on_error:
                     raise TranscriptionError(error_msg)
-                print(error_msg)
+                error(error_msg)
                 sys.exit(1)
 
             result = response.json()
@@ -75,21 +75,21 @@ def transcribe_audio(
         error_msg = "Request timed out. Please try again."
         if raise_on_error:
             raise TranscriptionError(error_msg)
-        print(error_msg)
+        error(error_msg)
         sys.exit(1)
 
     except httpx.RequestError as e:
         error_msg = f"Request failed: {e}"
         if raise_on_error:
             raise TranscriptionError(error_msg)
-        print(error_msg)
+        error(error_msg)
         sys.exit(1)
 
     except Exception as e:
         error_msg = f"Transcription error: {e}"
         if raise_on_error:
             raise TranscriptionError(error_msg)
-        print(error_msg)
+        error(error_msg)
         sys.exit(1)
 
 
@@ -126,19 +126,19 @@ def test_transcription(
             response = client.get(url, headers=headers)
 
         if response.status_code == 200:
-            print("✓ API connection successful")
-            print(f"  Base URL: {api_base_url}")
-            print(f"  Model: {model_name}")
+            print_success("API connection successful")
+            print_key_value("Base URL", api_base_url)
+            print_key_value("Model", model_name)
             return True
         else:
-            print(f"✗ API returned status {response.status_code}")
-            print(f"  Response: {response.text[:200]}")
+            print_error(f"API returned status {response.status_code}")
+            print_key_value("Response", response.text[:200])
             return False
 
     except httpx.TimeoutException:
-        print("✗ Connection timed out")
+        print_error("Connection timed out")
         return False
 
     except httpx.RequestError as e:
-        print(f"✗ Connection failed: {e}")
+        print_error(f"Connection failed: {e}")
         return False
