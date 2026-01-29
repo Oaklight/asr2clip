@@ -203,8 +203,8 @@ asr2clip --daemon --vad
 # 校准静音阈值（测量环境噪音）
 asr2clip --calibrate
 
-# 启动时自动校准
-asr2clip --daemon --vad --auto_calibrate
+# 启用自适应阈值（实时调整）
+asr2clip --daemon --vad --adaptive
 
 # 使用自定义静音设置
 asr2clip --daemon --vad --silence_threshold 0.005 --silence_duration 2.0
@@ -212,10 +212,15 @@ asr2clip --daemon --vad --silence_threshold 0.005 --silence_duration 2.0
 
 VAD 选项：
 - `--vad`：启用语音活动检测
+- `--adaptive`：启用自适应阈值，实时根据环境噪音调整
 - `--calibrate`：测量环境噪音并建议阈值
-- `--auto_calibrate`：启动守护模式前自动校准
 - `--silence_threshold`：静音 RMS 阈值（默认：0.01）
 - `--silence_duration`：触发转录的静音时长（秒，默认：1.5）
+
+提示：使用 `--adaptive` 可以在录音过程中自动调整阈值：
+```bash
+asr2clip --daemon --vad --adaptive
+```
 
 启用 VAD 后，转录在以下情况触发：
 1. 检测到语音（音频高于阈值）

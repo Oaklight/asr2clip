@@ -216,8 +216,8 @@ asr2clip --daemon --vad --silence_threshold 0.005 --silence_duration 2.0
 
 VAD options:
 - `--vad`: Enable voice activity detection
+- `--adaptive`: Enable adaptive threshold that adjusts to ambient noise on-the-fly
 - `--calibrate`: Measure ambient noise and suggest threshold
-- `--auto_calibrate`: Auto-calibrate before starting daemon mode
 - `--silence_threshold`: RMS threshold for silence (default: 0.01)
 - `--silence_duration`: Seconds of silence to trigger transcription (default: 1.5)
 
@@ -225,10 +225,11 @@ With VAD enabled, transcription is triggered when:
 1. Speech is detected (audio above threshold)
 2. Followed by silence (audio below threshold for the specified duration)
 
-Tip: Use `--auto_calibrate` to automatically measure ambient noise at startup:
+Tip: Use `--adaptive` for automatic threshold adjustment during recording:
 ```bash
-asr2clip --daemon --vad --auto_calibrate
+asr2clip --daemon --vad --adaptive
 ```
+This continuously monitors ambient noise and adjusts the threshold accordingly.
 
 ## Troubleshooting
 
