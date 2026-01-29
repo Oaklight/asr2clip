@@ -77,6 +77,54 @@ model_name: "whisper-1"                     # or other compatible model
     print(config_template.strip())
 
 
+def generate_test_audio(filename, fs=44100, duration=1.0, frequency=440):
+    """Generate a simple test audio file with a sine wave tone."""
+    t = np.linspace(0, duration, int(fs * duration), endpoint=False)
+    # Generate a sine wave
+    audio = np.sin(2 * np.pi * frequency * t)
+    # Normalize and convert to 16-bit
+    audio = np.int16(audio * 32767 * 0.5)  # 50% volume
+    write(filename, fs, audio)
+    return filename
+
+
+def test_api(api_key, api_base_url, model_name, org_id=None):
+    """Test the API connection by sending a simple test audio."""
+    log("Testing API connection...")
+    log(f"  API Base URL: {api_base_url}")
+    log(f"  Model: {model_name}")
+
+    # Create a temporary test audio file
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmpfile:
+        filename = tmpfile.name
+
+    try:
+        # Generate test audio (1 second of 440Hz tone)
+        generate_test_audio(filename, fs=44100, duration=1.0, frequency=440)
+        log("Generated test audio (1 second, 440Hz tone)")
+
+        # Try to transcribe
+        transcript = transcribe_audio(
+            filename,
+            api_key,
+            api_base_url,
+            model_name,
+            org_id=org_id,
+        )
+
+        log("\n✓ API connection successful!")
+        log(f"  Transcription result: '{transcript.text}'")
+        log("  (Note: A simple tone may produce empty or unexpected transcription)")
+        return True
+    except Exception as e:
+        print(f"\n✗ API connection failed: {e}")
+        return False
+    finally:
+        # Clean up
+        if os.path.exists(filename):
+            os.remove(filename)
+
+
 def record_audio(fs, duration=None):
     if duration:
         log(f"Recording for {duration} seconds...")
@@ -112,12 +160,20 @@ def record_audio(fs, duration=None):
 
 def save_audio(recording, fs, filename):
     # Check if the recording is empty or contains invalid values
-    if recording.size == 0 or np.all(np.isnan(recording)):
-        print("Error: The recorded audio data is empty or contains invalid values.")
+    if recording.size == 0:
+        print("Error: The recorded audio data is empty.")
+        sys.exit(1)
+
+    # Check for all-zero or all-NaN recordings
+    max_val = np.max(np.abs(recording))
+    if max_val == 0 or np.isnan(max_val):
+        print(
+            "Error: The recorded audio contains no valid audio data (silent or invalid)."
+        )
         sys.exit(1)
 
     # Normalize and convert to 16-bit data
-    recording = recording / np.max(np.abs(recording))
+    recording = recording / max_val
     recording = np.int16(recording * 32767)
     write(filename, fs, recording)
 
@@ -319,6 +375,11 @@ def main():
         default=None,
         help="Path to the output file. If not specified, output will be copied to the clipboard. Use '-' for stdout.",
     )
+    parser.add_argument(
+        "--test_api",
+        action="store_true",
+        help="Test the API connection with a simple audio sample and exit.",
+    )
 
     args = parser.parse_args()
 
@@ -326,6 +387,21 @@ def main():
     if args.generate_config:
         generate_config()
         sys.exit(0)
+
+    # If --test_api is provided, test the API and exit
+    if args.test_api:
+        asr_config = read_config(args.config)
+        api_key = asr_config.get("api_key", os.environ.get("OPENAI_API_KEY"))
+        api_base_url = asr_config.get("api_base_url", "https://api.openai.com/v1")
+        org_id = asr_config.get("org_id", os.environ.get("OPENAI_ORG_ID"))
+        model_name = asr_config.get("model_name", "whisper-1")
+
+        if not api_key:
+            print("Error: API key not found in the configuration file.")
+            sys.exit(1)
+
+        success = test_api(api_key, api_base_url, model_name, org_id)
+        sys.exit(0 if success else 1)
 
     # Read configuration
     asr_config = read_config(args.config)
