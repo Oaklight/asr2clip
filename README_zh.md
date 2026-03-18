@@ -1,8 +1,7 @@
 # asr2clip 语音转文字剪贴板工具
 
-[![PyPI version](https://badge.fury.io/py/asr2clip.svg?icon=si%3Apython)](https://badge.fury.io/py/asr2clip)
-[![GitHub version](https://badge.fury.io/gh/oaklight%2Fasr2clip.svg?icon=si%3Agithub)](https://badge.fury.io/gh/oaklight%2Fasr2clip)
-[![License](https://img.shields.io/github/license/Oaklight/asr2clip)](https://github.com/Oaklight/asr2clip/blob/master/LICENSE)
+[![PyPI version](https://img.shields.io/pypi/v/asr2clip?color=green)](https://pypi.org/project/asr2clip/)
+[![License](https://img.shields.io/github/license/Oaklight/asr2clip?color=green)](https://github.com/Oaklight/asr2clip/blob/master/LICENSE)
 
 [English](README.md)
 
