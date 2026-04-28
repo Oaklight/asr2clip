@@ -1,0 +1,104 @@
+site_name: asr2clip
+site_description: asr2clip - 实时语音转文字剪贴板工具
+site_author: Peng Ding
+site_url: https://asr2clip.readthedocs.io/zh-cn/latest
+repo_name: Oaklight/asr2clip
+repo_url: https://github.com/Oaklight/asr2clip
+copyright: Copyright &copy; 2024 Peng Ding
+
+theme:
+  name: material
+  language: zh
+  palette:
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: 切换到浅色模式
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: 切换到深色模式
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: 跟随系统偏好
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.indexes
+    - search.highlight
+    - search.share
+    - search.suggest
+    - content.code.copy
+    - content.action.edit
+
+plugins:
+  - search:
+      separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            show_root_toc_entry: false
+            merge_init_into_class: true
+            separate_signature: true
+            show_signature_annotations: true
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/Oaklight/asr2clip
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/asr2clip/
+  alternate:
+    - name: English
+      link: /en/
+      lang: en
+    - name: 中文
+      link: /zh-cn/
+      lang: zh
+
+nav:
+  - 首页: index.md
+  - 快速上手:
+      - 安装: getting-started/installation.md
+      - 快速开始: getting-started/quickstart.md
+      - 配置: getting-started/configuration.md
+  - 使用指南:
+      - usage/index.md
+      - 基本用法: usage/basic.md
+      - 持续录音模式: usage/continuous-mode.md
+      - 语音活动检测: usage/vad.md
+      - 本地 ASR 服务器: usage/local-asr.md
+  - API 参考:
+      - api/index.md
+  - 更新日志: changelog.md
