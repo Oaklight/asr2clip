@@ -5,7 +5,7 @@ import sys
 import tarfile
 from pathlib import Path
 
-import httpx
+from asr2clip._vendor.httpclient import httpclient
 
 MODEL_ARCHIVE_URL = (
     "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/"
@@ -91,9 +91,7 @@ def download_model(model_dir: Path, force: bool = False) -> Path:
     print(f"  To:   {archive_path}", file=sys.stderr)
 
     try:
-        with httpx.stream(
-            "GET", MODEL_ARCHIVE_URL, follow_redirects=True, timeout=300
-        ) as resp:
+        with httpclient.get(MODEL_ARCHIVE_URL, stream=True, timeout=300) as resp:
             resp.raise_for_status()
             total = int(resp.headers.get("content-length", 0))
             downloaded = 0
@@ -113,7 +111,7 @@ def download_model(model_dir: Path, force: bool = False) -> Path:
                         )
 
         print(file=sys.stderr)  # newline after progress
-    except httpx.HTTPError as e:
+    except httpclient.HTTPError as e:
         print(f"\nDownload failed: {e}", file=sys.stderr)
         if archive_path.exists():
             archive_path.unlink()

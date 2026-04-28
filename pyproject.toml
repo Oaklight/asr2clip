@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["asr2clip", "asr2clip.local_asr"]
+packages = ["asr2clip", "asr2clip.local_asr", "asr2clip._vendor", "asr2clip._vendor.yaml", "asr2clip._vendor.httpclient"]
 
 [tool.setuptools.dynamic]
 version = { attr = "asr2clip.__version__" }
@@ -26,10 +26,8 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "httpx>=0.24.0",
     "numpy>=1.24.4",
     "pyperclip>=1.9.0",
-    "PyYAML>=6.0.2",
     "sounddevice>=0.5.1",
     "pydub>=0.25.1",
     "audioop-lts>=0.2.1; python_version>='3.13'",
@@ -64,6 +62,9 @@ target-version = "py310"
 select = ["E", "F", "UP", "C901"]
 ignore = ["UP007", "E501"]
 
+[tool.ruff.lint.per-file-ignores]
+"asr2clip/_vendor/*" = ["E", "F", "UP", "C901"]
+
 [tool.ruff.lint.mccabe]
 max-complexity = 15
 
@@ -72,8 +73,9 @@ python-version = "3.10"
 
 [tool.ty.src]
 include = ["asr2clip"]
-exclude = ["asr2clip/local_asr"]
+exclude = ["asr2clip/local_asr", "asr2clip/_vendor"]
 
 [tool.complexipy]
 paths = ["asr2clip"]
+exclude = ["asr2clip/_vendor"]
 max-complexity-allowed = 15
