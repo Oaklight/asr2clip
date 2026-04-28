@@ -1,0 +1,36 @@
+name: Lint & Type Check
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dev dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Ruff check
+        run: ruff check asr2clip/
+
+      - name: Ruff format check
+        run: ruff format --check asr2clip/
+
+      - name: Type check (ty)
+        run: ty check
+
+      - name: Complexity check (complexipy)
+        run: complexipy asr2clip/
