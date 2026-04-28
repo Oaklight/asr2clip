@@ -48,7 +48,7 @@ model_name: "whisper-1"                     # or other compatible model
 """
 
 
-def find_config_path(config_file: str = None) -> str | None:
+def find_config_path(config_file: str | None = None) -> str | None:
     """Find the configuration file path.
 
     Args:
@@ -93,7 +93,7 @@ def read_config(config_file: str) -> dict:
         sys.exit(1)
 
     try:
-        with open(config_path, "r") as file:
+        with open(config_path) as file:
             config = yaml.safe_load(file)
             # Handle legacy config format
             if "asr_model" in config and len(config) == 1:
@@ -104,7 +104,7 @@ def read_config(config_file: str) -> dict:
         sys.exit(1)
 
 
-def open_in_editor(config_file: str = None):
+def open_in_editor(config_file: str | None = None):
     """Open the configuration file in the system's default editor.
 
     Args:
@@ -151,7 +151,7 @@ def open_in_editor(config_file: str = None):
 
 
 def generate_config(
-    output_path: str = None, force: bool = False, print_only: bool = False
+    output_path: str | None = None, force: bool = False, print_only: bool = False
 ) -> str | None:
     """Generate a template configuration file.
 
@@ -210,7 +210,7 @@ def get_api_config(config: dict) -> tuple[str, str, str, str | None]:
     return api_key, api_base_url, model_name, org_id
 
 
-def get_audio_device(config: dict, cli_device: str = None) -> str | int | None:
+def get_audio_device(config: dict, cli_device: str | None = None) -> str | int | None:
     """Get audio device from config or CLI argument.
 
     Args:

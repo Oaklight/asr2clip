@@ -186,8 +186,12 @@ def process_file(
                 pass
 
 
-def main():
-    """Main entry point for asr2clip."""
+def _build_parser() -> argparse.ArgumentParser:
+    """Build the argument parser for asr2clip.
+
+    Returns:
+        Configured ArgumentParser instance.
+    """
     parser = argparse.ArgumentParser(
         description="Record audio and transcribe to clipboard using ASR API",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -211,14 +215,9 @@ Setup:
 """,
     )
 
-    # Basic options
     parser.add_argument(
-        "-v",
-        "--version",
-        action="version",
-        version=f"asr2clip {__version__}",
+        "-v", "--version", action="version", version=f"asr2clip {__version__}"
     )
-
     parser.add_argument(
         "-c",
         "--config",
@@ -226,15 +225,12 @@ Setup:
         help="Path to configuration file",
         default=None,
     )
-
     parser.add_argument(
         "-q",
         "--quiet",
         action="store_true",
         help="Quiet mode - only output transcription and errors",
     )
-
-    # Input/Output
     parser.add_argument(
         "-i",
         "--input",
@@ -242,7 +238,6 @@ Setup:
         help="Transcribe audio file instead of recording",
         default=None,
     )
-
     parser.add_argument(
         "-o",
         "--output",
@@ -250,53 +245,36 @@ Setup:
         help="Append transcripts to file",
         default=None,
     )
-
-    # Setup commands
     parser.add_argument(
-        "--test",
-        action="store_true",
-        help="Test API configuration and exit",
+        "--test", action="store_true", help="Test API configuration and exit"
     )
-
     parser.add_argument(
-        "--list_devices",
-        action="store_true",
-        help="List available audio input devices",
+        "--list_devices", action="store_true", help="List available audio input devices"
     )
-
     parser.add_argument(
         "--device",
         metavar="DEV",
         help="Audio input device (name or index)",
         default=None,
     )
-
     parser.add_argument(
-        "-e",
-        "--edit",
-        action="store_true",
-        help="Open configuration file in editor",
+        "-e", "--edit", action="store_true", help="Open configuration file in editor"
     )
-
     parser.add_argument(
         "--generate_config",
         action="store_true",
         help="Create config file at ~/.config/asr2clip/config.yaml",
     )
-
     parser.add_argument(
         "--print_config",
         action="store_true",
         help="Print template configuration to stdout",
     )
-
-    # Continuous recording modes
     parser.add_argument(
         "--vad",
         action="store_true",
         help="Continuous recording with voice activity detection",
     )
-
     parser.add_argument(
         "--interval",
         type=float,
@@ -304,27 +282,23 @@ Setup:
         default=None,
         help="Continuous recording with fixed interval (seconds)",
     )
-
     parser.add_argument(
         "--adaptive",
         action="store_true",
         help="Adaptive threshold (default when --vad is used)",
     )
-
     parser.add_argument(
         "--calibrate",
         action="store_true",
         help="Calibrate silence threshold from ambient noise",
     )
-
     parser.add_argument(
         "--silence_threshold",
         type=float,
         metavar="RMS",
-        default=None,  # None means auto (use adaptive)
+        default=None,
         help="Silence threshold (default: auto with adaptive)",
     )
-
     parser.add_argument(
         "--silence_duration",
         type=float,
@@ -332,19 +306,24 @@ Setup:
         default=1.5,
         help="Silence duration to trigger transcription (default: 1.5)",
     )
-
     parser.add_argument(
         "--no_adaptive",
         action="store_true",
         help="Disable adaptive threshold (use fixed threshold)",
     )
 
-    args = parser.parse_args()
+    return parser
 
-    # Determine if continuous mode is enabled
-    continuous_mode = args.vad or args.interval is not None
 
-    # Validate option combinations
+def _validate_args(args: argparse.Namespace):
+    """Validate and resolve argument defaults.
+
+    Args:
+        args: Parsed arguments namespace (modified in-place).
+
+    Raises:
+        SystemExit: On invalid argument combinations.
+    """
     if args.adaptive and not args.vad:
         print("Error: --adaptive requires --vad")
         sys.exit(1)
@@ -357,13 +336,18 @@ Setup:
     if args.vad and not args.no_adaptive and args.silence_threshold is None:
         args.adaptive = True
 
-    # Set default threshold if not specified
     if args.silence_threshold is None:
         args.silence_threshold = 0.01
 
-    # Set default interval for continuous mode
     if args.interval is None:
         args.interval = 30.0
+
+
+def main():
+    """Main entry point for asr2clip."""
+    parser = _build_parser()
+    args = parser.parse_args()
+    _validate_args(args)
 
     # Handle --generate_config and --print_config
     if args.print_config:
@@ -374,12 +358,10 @@ Setup:
         generate_config()
         return
 
-    # Handle --edit
     if args.edit:
         open_in_editor(args.config)
         return
 
-    # Handle --list_devices
     if args.list_devices:
         list_audio_devices()
         return
@@ -392,15 +374,12 @@ Setup:
     setup_logging(verbose=not quiet)
     set_verbose(not quiet)
 
-    # Handle --test
     if args.test:
         success = test_config(config)
         sys.exit(0 if success else 1)
 
-    # Get audio device
     device = get_audio_device(config, args.device)
 
-    # Handle --calibrate
     if args.calibrate:
         from .vad import calibrate_silence_threshold
 
@@ -408,10 +387,8 @@ Setup:
         print(f"\nUse this threshold with: --silence_threshold {threshold:.4f}")
         return
 
-    # Handle continuous recording mode (--vad or --interval)
-    if continuous_mode:
+    if args.vad or args.interval is not None:
         api_key, api_base_url, model_name, org_id = get_api_config(config)
-
         continuous_recording(
             api_key=api_key,
             api_base_url=api_base_url,
@@ -427,12 +404,10 @@ Setup:
         )
         return
 
-    # Handle --input (file transcription)
     if args.input:
         process_file(config, args.input, args.output)
         return
 
-    # Default: record and transcribe
     process_recording(config, device, args.output)
 
 

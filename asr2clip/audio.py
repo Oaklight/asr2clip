@@ -3,7 +3,7 @@
 import io
 import tempfile
 import wave
-from typing import Callable
+from collections.abc import Callable
 
 import numpy as np
 import sounddevice as sd
@@ -136,7 +136,7 @@ def save_audio(audio_data: np.ndarray, sample_rate: int = 16000) -> str:
     return temp_file.name
 
 
-def convert_audio_to_wav(input_path: str, output_path: str = None) -> str:
+def convert_audio_to_wav(input_path: str, output_path: str | None = None) -> str:
     """Convert an audio file to WAV format.
 
     Args:
