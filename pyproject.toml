@@ -77,4 +77,5 @@ exclude = ["asr2clip/local_asr", "asr2clip/_vendor"]
 
 [tool.complexipy]
 paths = ["asr2clip"]
+exclude = ["asr2clip/_vendor"]
 max-complexity-allowed = 15
