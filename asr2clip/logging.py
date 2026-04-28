@@ -7,7 +7,6 @@ with ANSI color codes for terminal output.
 import logging
 import os
 import sys
-from typing import Optional
 
 
 # ANSI color codes for terminal output
@@ -135,7 +134,7 @@ class ColoredFormatter(logging.Formatter):
         logging.CRITICAL: "CRIT",
     }
 
-    def __init__(self, fmt: Optional[str] = None, datefmt: Optional[str] = None):
+    def __init__(self, fmt: str | None = None, datefmt: str | None = None):
         """Initialize the formatter.
 
         Args:
@@ -183,14 +182,14 @@ class ColoredFormatter(logging.Formatter):
 
 
 # Module-level logger
-_logger: Optional[logging.Logger] = None
+_logger: logging.Logger | None = None
 _verbose: bool = True
 
 
 def setup_logging(
     verbose: bool = True,
     debug: bool = False,
-    log_file: Optional[str] = None,
+    log_file: str | None = None,
 ) -> logging.Logger:
     """Set up the logging system.
 
