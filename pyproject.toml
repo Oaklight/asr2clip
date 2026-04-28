@@ -14,12 +14,10 @@ dynamic = ["version"]
 authors = [{ name = "Oaklight", email = "oaklight@gmx.com" }]
 description = "A real-time speech-to-text clipboard tool."
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 license = { text = "GNU Affero General Public License v3" }
 classifiers = [
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -29,8 +27,7 @@ classifiers = [
 ]
 dependencies = [
     "httpx>=0.24.0",
-    "numpy>=1.24.4,<2.0; python_version<'3.9'",
-    "numpy>=1.24.4; python_version>='3.9'",
+    "numpy>=1.24.4",
     "pyperclip>=1.9.0",
     "PyYAML>=6.0.2",
     "sounddevice>=0.5.1",
@@ -45,4 +42,30 @@ Homepage = "https://github.com/Oaklight/asr2clip"
 asr2clip = "asr2clip.asr2clip:main"
 
 [project.optional-dependencies]
-dev = ["build>=1.0.0", "twine>=5.0.0", "pyright>=1.1.0", "ruff>=0.4.0"]
+dev = [
+    "complexipy>=5.2.0",
+    "ruff>=0.15.0",
+    "ty>=0.0.31",
+    "build>=1.2.2.post1",
+    "twine>=6.1.0",
+]
+
+[tool.ruff]
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "UP", "C901"]
+ignore = ["UP007", "E501"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
+
+[tool.ty.environment]
+python-version = "3.10"
+
+[tool.ty.src]
+include = ["asr2clip"]
+
+[tool.complexipy]
+paths = ["asr2clip"]
+max-complexity-allowed = 15
