@@ -212,6 +212,11 @@ Setup:
   asr2clip --test                  # Test API connection
   asr2clip --list_devices          # List audio devices
   asr2clip --calibrate             # Calibrate silence threshold
+
+Local ASR server:
+  asr2clip --serve                 # Start local ASR server on :8000
+  asr2clip --serve --port 9000     # Start on custom port
+  asr2clip --download-model        # Download SenseVoice model
 """,
     )
 
@@ -312,6 +317,41 @@ Setup:
         help="Disable adaptive threshold (use fixed threshold)",
     )
 
+    # Local ASR server
+    server_group = parser.add_argument_group("Local ASR server")
+    server_group.add_argument(
+        "--serve",
+        action="store_true",
+        help="Start the local ASR API server",
+    )
+    server_group.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Server bind address (default: 127.0.0.1)",
+    )
+    server_group.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="Server bind port (default: 8000)",
+    )
+    server_group.add_argument(
+        "--model-dir",
+        default=None,
+        help="Path to ASR model directory",
+    )
+    server_group.add_argument(
+        "--num-threads",
+        type=int,
+        default=4,
+        help="Inference threads (default: 4)",
+    )
+    server_group.add_argument(
+        "--download-model",
+        action="store_true",
+        help="Download the SenseVoice model and exit",
+    )
+
     return parser
 
 
@@ -347,6 +387,33 @@ def main():
     """Main entry point for asr2clip."""
     parser = _build_parser()
     args = parser.parse_args()
+
+    # Handle --serve (local ASR server) — before validation
+    if args.serve:
+        from .local_asr import check_deps
+
+        check_deps()
+        from .local_asr.app import run_server
+
+        run_server(
+            host=args.host,
+            port=args.port,
+            model_dir=args.model_dir,
+            num_threads=args.num_threads,
+        )
+        return
+
+    # Handle --download-model — before validation
+    if args.download_model:
+        from .local_asr import check_deps
+
+        check_deps()
+        from .local_asr.model_manager import download_model, resolve_model_dir
+
+        model_dir = resolve_model_dir(args.model_dir)
+        download_model(model_dir)
+        return
+
     _validate_args(args)
 
     # Handle --generate_config and --print_config
