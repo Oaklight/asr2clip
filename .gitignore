@@ -170,6 +170,10 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
+# Documentation worktrees (orphan branches)
+docs_en/
+docs_zh/
+
 # project specific
 asr2clip.conf
 # all audio/video files
