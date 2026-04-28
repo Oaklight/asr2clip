@@ -4,7 +4,7 @@ import os
 import subprocess
 import sys
 
-import yaml
+from asr2clip._vendor.yaml import yaml
 
 # Default paths to search for config file (in order of priority)
 CONFIG_PATHS = [
@@ -94,7 +94,7 @@ def read_config(config_file: str) -> dict:
 
     try:
         with open(config_path) as file:
-            config = yaml.safe_load(file)
+            config = yaml.load(file.read())
             # Handle legacy config format
             if "asr_model" in config and len(config) == 1:
                 return config["asr_model"]
