@@ -5,7 +5,7 @@ import sys
 import time
 from typing import NoReturn
 
-import httpx
+from asr2clip._vendor.httpclient import httpclient
 
 from .utils import error, print_error, print_key_value, print_success, warning
 
@@ -64,16 +64,17 @@ def _attempt_transcription(
         Transcribed text.
 
     Raises:
-        httpx.TimeoutException: On request timeout.
-        httpx.RequestError: On request failure.
+        httpclient.HttpTimeoutError: On request timeout.
+        httpclient.HttpClientError: On request failure.
         TranscriptionError: On API error response.
     """
     with open(audio_file_path, "rb") as audio_file:
         files = {"file": (os.path.basename(audio_file_path), audio_file, "audio/wav")}
         data = {"model": model_name}
 
-        with httpx.Client(timeout=timeout) as client:
+        with httpclient.Client(timeout=timeout) as client:
             response = client.post(url, headers=headers, files=files, data=data)
+            assert isinstance(response, httpclient.Response)
 
     if response.status_code != 200:
         raise TranscriptionError(f"API error {response.status_code}: {response.text}")
@@ -130,7 +131,7 @@ def transcribe_audio(
             return _attempt_transcription(
                 audio_file_path, url, headers, model_name, timeout
             )
-        except (httpx.TimeoutException, httpx.RequestError) as e:
+        except (httpclient.HttpTimeoutError, httpclient.HttpClientError) as e:
             last_error = e
             if attempt < max_retries:
                 warning(
@@ -182,8 +183,9 @@ def test_transcription(
         headers["OpenAI-Organization"] = org_id
 
     try:
-        with httpx.Client(timeout=10.0) as client:
+        with httpclient.Client(timeout=10.0) as client:
             response = client.get(url, headers=headers)
+            assert isinstance(response, httpclient.Response)
 
         if response.status_code == 200:
             print_success("API connection successful")
@@ -195,10 +197,10 @@ def test_transcription(
             print_key_value("Response", response.text[:200])
             return False
 
-    except httpx.TimeoutException:
+    except httpclient.HttpTimeoutError:
         print_error("Connection timed out")
         return False
 
-    except httpx.RequestError as e:
+    except httpclient.HttpClientError as e:
         print_error(f"Connection failed: {e}")
         return False
