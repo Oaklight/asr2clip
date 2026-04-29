@@ -76,7 +76,7 @@ python-version = "3.10"
 
 [tool.ty.src]
 include = ["asr2clip"]
-exclude = ["asr2clip/local_asr", "asr2clip/_vendor"]
+exclude = ["asr2clip/local_asr", "asr2clip/_vendor", "asr2clip/vad.py"]
 
 [tool.complexipy]
 paths = ["asr2clip"]
