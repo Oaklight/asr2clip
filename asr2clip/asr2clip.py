@@ -423,7 +423,7 @@ def main():
         api_key, api_base_url, model_name, org_id = get_api_config(config)
         if args.vad:
             try:
-                import sherpa_onnx  # noqa: F401
+                import sherpa_onnx  # noqa: F401  # type: ignore[unresolved-import]
             except ImportError:
                 print(
                     "Error: VAD requires sherpa-onnx.\n"
