@@ -37,12 +37,13 @@ asr2clip                   # Start recording and transcribing
 | | |
 |---|---|
 | **Real-time Transcription** | Record and transcribe speech with a single command |
-| **Clipboard Integration** | Automatically copy transcription results to clipboard |
-| **Voice Activity Detection** | Auto-transcribe when you stop speaking |
+| **Clipboard Integration** | Automatically copy results to clipboard (no external tools needed) |
+| **Voice Activity Detection** | Multi-feature VAD with adaptive threshold for auto-transcription |
 | **Continuous Mode** | Long recording for meetings and lectures |
 | **Multiple Backends** | OpenAI Whisper, SiliconFlow, Xinference, and more |
 | **Local ASR Server** | Optional offline transcription with sherpa-onnx |
 | **File Transcription** | Transcribe existing audio files |
+| **Minimal Dependencies** | Core functionality with vendored YAML and HTTP modules |
 | **Cross-platform** | Works on Linux, macOS, and Windows |
 
 ---

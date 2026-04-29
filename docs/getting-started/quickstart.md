@@ -2,6 +2,8 @@
 
 ## 1. Install
 
+Requires **Python 3.10+**.
+
 ```bash
 pip install asr2clip
 ```

@@ -26,7 +26,9 @@ In continuous mode:
 
 - Audio is recorded continuously
 - Transcription happens automatically (on silence or at interval)
+- Transcription runs **asynchronously** — recording continues while previous segments are being transcribed, with results output in order
 - Press **Ctrl+C once** to stop — remaining audio is transcribed before exit
+- Press **Ctrl+C twice** to force exit immediately
 - Transcripts are appended to the output file with timestamps
 
 ## Tips

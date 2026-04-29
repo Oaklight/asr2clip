@@ -17,7 +17,11 @@ usage: asr2clip [-h] [-v] [-c FILE] [-q] [-i FILE] [-o FILE] [--test]
                 [--print_config] [--vad] [--interval SEC] [--adaptive]
                 [--calibrate] [--silence_threshold RMS]
                 [--silence_duration SEC] [--no_adaptive]
+                [--serve] [--host HOST] [--port PORT]
+                [--model-dir DIR] [--num-threads N] [--download-model]
 ```
+
+### General Options
 
 | Option | Description |
 |--------|-------------|
@@ -33,6 +37,11 @@ usage: asr2clip [-h] [-v] [-c FILE] [-q] [-i FILE] [-o FILE] [--test]
 | `-e, --edit` | Open configuration file in editor |
 | `--generate_config` | Create config file |
 | `--print_config` | Print config template to stdout |
+
+### VAD & Continuous Mode Options
+
+| Option | Description |
+|--------|-------------|
 | `--vad` | Continuous recording with voice activity detection |
 | `--interval SEC` | Continuous recording with fixed interval |
 | `--adaptive` | Adaptive threshold (default with `--vad`) |
@@ -40,3 +49,17 @@ usage: asr2clip [-h] [-v] [-c FILE] [-q] [-i FILE] [-o FILE] [--test]
 | `--silence_threshold RMS` | Silence threshold |
 | `--silence_duration SEC` | Silence duration to trigger transcription |
 | `--no_adaptive` | Disable adaptive threshold |
+
+### Local ASR Server Options
+
+| Option | Description |
+|--------|-------------|
+| `--serve` | Start the local ASR API server |
+| `--host HOST` | Server bind address (default: `127.0.0.1`) |
+| `--port PORT` | Server bind port (default: `8000`) |
+| `--model-dir DIR` | Path to ASR model directory |
+| `--num-threads N` | Number of inference threads (default: `4`) |
+| `--download-model` | Download the SenseVoice model and exit |
+
+!!! tip
+    The local ASR server requires the `local_asr` extra: `pip install "asr2clip[local_asr]"`

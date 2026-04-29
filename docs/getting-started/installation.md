@@ -1,5 +1,9 @@
 # Installation
 
+## Prerequisites
+
+- **Python 3.10 or higher**
+
 ## System Dependencies
 
 Before installing asr2clip, ensure the following system dependencies are available:
@@ -8,7 +12,10 @@ Before installing asr2clip, ensure the following system dependencies are availab
 |------------|---------|-------|-------|---------|
 | **ffmpeg** | Audio format conversion | `apt install ffmpeg` | `brew install ffmpeg` | [Download](https://ffmpeg.org/download.html) |
 | **PortAudio** | Audio recording | `apt install libportaudio2` | `brew install portaudio` | Included with sounddevice |
-| **Clipboard** | Copy to clipboard | `apt install xclip` (X11) or `wl-clipboard` (Wayland) | Built-in | Built-in |
+| **Clipboard** | Copy to clipboard | Built-in (copykitten) | Built-in | Built-in |
+
+!!! note
+    Clipboard access is handled by [copykitten](https://github.com/koenvervloesem/copykitten), which uses native platform APIs directly. No external tools like `xclip` or `wl-clipboard` are needed.
 
 ## Install via pip or pipx (Recommended)
 
@@ -38,3 +45,5 @@ To use the local ASR server (offline transcription with sherpa-onnx):
 ```bash
 pip install "asr2clip[local_asr]"
 ```
+
+See [Local ASR Server](../usage/local-asr.md) for details.
