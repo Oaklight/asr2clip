@@ -33,4 +33,4 @@ jobs:
         run: ty check
 
       - name: Complexity check (complexipy)
-        run: complexipy asr2clip/
+        run: complexipy asr2clip/ -e "_vendor"
