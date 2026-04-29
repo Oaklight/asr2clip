@@ -211,7 +211,6 @@ Setup:
   asr2clip --generate_config       # Create new config file
   asr2clip --test                  # Test API connection
   asr2clip --list_devices          # List audio devices
-  asr2clip --calibrate             # Calibrate silence threshold
 
 Local ASR server:
   asr2clip --serve                 # Start local ASR server on :8000
@@ -288,21 +287,11 @@ Local ASR server:
         help="Continuous recording with fixed interval (seconds)",
     )
     parser.add_argument(
-        "--adaptive",
-        action="store_true",
-        help="Adaptive threshold (default when --vad is used)",
-    )
-    parser.add_argument(
-        "--calibrate",
-        action="store_true",
-        help="Calibrate silence threshold from ambient noise",
-    )
-    parser.add_argument(
         "--silence_threshold",
         type=float,
-        metavar="RMS",
+        metavar="PROB",
         default=None,
-        help="Silence threshold (default: auto with adaptive)",
+        help="VAD speech probability threshold, 0.0-1.0 (default: 0.5)",
     )
     parser.add_argument(
         "--silence_duration",
@@ -310,11 +299,6 @@ Local ASR server:
         metavar="SEC",
         default=1.5,
         help="Silence duration to trigger transcription (default: 1.5)",
-    )
-    parser.add_argument(
-        "--no_adaptive",
-        action="store_true",
-        help="Disable adaptive threshold (use fixed threshold)",
     )
 
     # Local ASR server
@@ -364,20 +348,8 @@ def _validate_args(args: argparse.Namespace):
     Raises:
         SystemExit: On invalid argument combinations.
     """
-    if args.adaptive and not args.vad:
-        print("Error: --adaptive requires --vad")
-        sys.exit(1)
-
-    if args.no_adaptive and not args.vad:
-        print("Error: --no_adaptive requires --vad")
-        sys.exit(1)
-
-    # Auto-enable adaptive when VAD is used, unless user specified threshold or --no_adaptive
-    if args.vad and not args.no_adaptive and args.silence_threshold is None:
-        args.adaptive = True
-
     if args.silence_threshold is None:
-        args.silence_threshold = 0.01
+        args.silence_threshold = 0.5
 
     if args.interval is None:
         args.interval = 30.0
@@ -447,15 +419,17 @@ def main():
 
     device = get_audio_device(config, args.device)
 
-    if args.calibrate:
-        from .vad import calibrate_silence_threshold
-
-        threshold = calibrate_silence_threshold(device=device)
-        print(f"\nUse this threshold with: --silence_threshold {threshold:.4f}")
-        return
-
     if args.vad or args.interval is not None:
         api_key, api_base_url, model_name, org_id = get_api_config(config)
+        if args.vad:
+            try:
+                import sherpa_onnx  # noqa: F401
+            except ImportError:
+                print(
+                    "Error: VAD requires sherpa-onnx.\n"
+                    "Install with: pip install asr2clip[vad]"
+                )
+                sys.exit(1)
         continuous_recording(
             api_key=api_key,
             api_base_url=api_base_url,
@@ -467,7 +441,6 @@ def main():
             vad_enabled=args.vad,
             silence_threshold=args.silence_threshold,
             silence_duration=args.silence_duration,
-            adaptive_threshold=args.adaptive,
         )
         return
 

@@ -21,7 +21,10 @@ from .utils import (
     setup_signal_handlers,
     warning,
 )
-from .vad import VoiceActivityDetector, calibrate_silence_threshold
+from .vad import VoiceActivityDetector
+
+# RMS threshold for silence filtering in interval-only mode (no VAD)
+_INTERVAL_SILENCE_RMS = 0.005
 
 
 @dataclass
@@ -47,9 +50,8 @@ class RecorderConfig:
     output_file: str | None = None
     sample_rate: int = 16000
     vad_enabled: bool = False
-    silence_threshold: float = 0.01
+    silence_threshold: float = 0.5
     silence_duration: float = 1.5
-    adaptive_threshold: bool = False
     min_transcribe_interval: float = 0.5
     max_concurrent_transcriptions: int = 3
 
@@ -71,22 +73,6 @@ class RecorderState:
     vad: VoiceActivityDetector | None = None
 
 
-def _calibrate_threshold(cfg: RecorderConfig) -> float:
-    """Calibrate silence threshold from ambient noise.
-
-    Args:
-        cfg: Recorder configuration.
-
-    Returns:
-        Calibrated silence threshold.
-    """
-    info("Calibrating ambient noise level...")
-    calibrated = calibrate_silence_threshold(
-        device=cfg.device, duration=1.0, sample_rate=cfg.sample_rate
-    )
-    return max(calibrated, 0.001)
-
-
 def _log_startup(cfg: RecorderConfig):
     """Log startup information.
 
@@ -95,12 +81,9 @@ def _log_startup(cfg: RecorderConfig):
     """
     if cfg.vad_enabled:
         info(
-            f"Starting continuous recording with VAD (silence: {cfg.silence_duration}s)"
+            f"Starting continuous recording with VAD "
+            f"(threshold: {cfg.silence_threshold}, silence: {cfg.silence_duration}s)"
         )
-        if cfg.adaptive_threshold:
-            info(f"Adaptive threshold enabled (base: {cfg.silence_threshold:.4f})")
-        else:
-            info(f"Silence threshold: {cfg.silence_threshold:.4f}")
     else:
         info(f"Starting continuous recording mode (interval: {cfg.interval}s)")
     info("Press Ctrl+C to stop")
@@ -231,12 +214,9 @@ def _transcribe_chunks(
     if duration < 0.5:
         return
 
-    if not skip_silence_check:
+    if not skip_silence_check and state.vad is None:
         rms = calculate_rms(audio_data)
-        threshold = (
-            state.vad.get_current_threshold() if state.vad else cfg.silence_threshold
-        )
-        if rms < threshold:
+        if rms < _INTERVAL_SILENCE_RMS:
             state.last_transcribe_time = time.time()
             return
 
@@ -336,9 +316,8 @@ def continuous_recording(
     output_file: str | None = None,
     sample_rate: int = 16000,
     vad_enabled: bool = False,
-    silence_threshold: float = 0.01,
+    silence_threshold: float = 0.5,
     silence_duration: float = 1.5,
-    adaptive_threshold: bool = False,
     min_transcribe_interval: float = 0.5,
     max_concurrent_transcriptions: int = 3,
 ):
@@ -358,9 +337,8 @@ def continuous_recording(
         output_file: Optional file to append transcripts to.
         sample_rate: Sample rate in Hz.
         vad_enabled: Enable voice activity detection.
-        silence_threshold: RMS threshold for silence detection.
+        silence_threshold: Silero speech probability threshold (0.0-1.0).
         silence_duration: Duration of silence to trigger transcription.
-        adaptive_threshold: Enable adaptive threshold based on ambient noise.
         min_transcribe_interval: Minimum interval between transcription triggers (seconds).
         max_concurrent_transcriptions: Maximum number of concurrent transcription requests.
     """
@@ -378,13 +356,9 @@ def continuous_recording(
         vad_enabled=vad_enabled,
         silence_threshold=silence_threshold,
         silence_duration=silence_duration,
-        adaptive_threshold=adaptive_threshold,
         min_transcribe_interval=min_transcribe_interval,
         max_concurrent_transcriptions=max_concurrent_transcriptions,
     )
-
-    if vad_enabled and adaptive_threshold and silence_threshold == 0.01:
-        cfg.silence_threshold = _calibrate_threshold(cfg)
 
     _log_startup(cfg)
 
@@ -392,9 +366,8 @@ def continuous_recording(
     if vad_enabled:
         state.vad = VoiceActivityDetector(
             sample_rate=sample_rate,
-            silence_threshold=cfg.silence_threshold,
+            threshold=cfg.silence_threshold,
             silence_duration=silence_duration,
-            adaptive=adaptive_threshold,
         )
 
     executor = ThreadPoolExecutor(max_workers=max_concurrent_transcriptions)

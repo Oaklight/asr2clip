@@ -126,9 +126,8 @@ asr2clip -i audio.mp3      # Transcribe an audio file
 ```
 usage: asr2clip [-h] [-v] [-c FILE] [-q] [-i FILE] [-o FILE] [--test]
                 [--list_devices] [--device DEV] [-e] [--generate_config]
-                [--print_config] [--vad] [--interval SEC] [--adaptive]
-                [--calibrate] [--silence_threshold RMS]
-                [--silence_duration SEC] [--no_adaptive]
+                [--print_config] [--vad] [--interval SEC]
+                [--silence_threshold PROB] [--silence_duration SEC]
 
 Record audio and transcribe to clipboard using ASR API
 
@@ -150,13 +149,10 @@ options:
   --print_config        Print template configuration to stdout
   --vad                 Continuous recording with voice activity detection
   --interval SEC        Continuous recording with fixed interval (seconds)
-  --adaptive            Adaptive threshold (default when --vad is used)
-  --calibrate           Calibrate silence threshold from ambient noise
-  --silence_threshold RMS
-                        Silence threshold (default: auto with adaptive)
+  --silence_threshold PROB
+                        VAD speech probability threshold, 0.0-1.0 (default: 0.5)
   --silence_duration SEC
                         Silence duration to trigger transcription (default: 1.5)
-  --no_adaptive         Disable adaptive threshold (use fixed threshold)
 ```
 
 ### Examples
@@ -198,35 +194,35 @@ In continuous mode:
 
 ### Voice Activity Detection (VAD)
 
+VAD uses the [Silero VAD](https://github.com/snakers4/silero-vad) neural network model via sherpa-onnx for reliable speech detection. Requires the `vad` extra:
+
+```bash
+pip install asr2clip[vad]
+```
+
 Enable automatic transcription when you stop speaking:
 
 ```bash
 # Auto-transcribe when silence is detected
-asr2clip --daemon --vad
+asr2clip --vad
 
-# Calibrate silence threshold for your environment
-asr2clip --calibrate
+# Use custom settings
+asr2clip --vad --silence_threshold 0.3 --silence_duration 2.0
 
-# Use custom silence settings
-asr2clip --daemon --vad --silence_threshold 0.005 --silence_duration 2.0
+# Save transcripts to file
+asr2clip --vad -o ~/meeting.txt
 ```
 
 VAD options:
 - `--vad`: Enable voice activity detection
-- `--adaptive`: Enable adaptive threshold that adjusts to ambient noise on-the-fly
-- `--calibrate`: Measure ambient noise and suggest threshold
-- `--silence_threshold`: RMS threshold for silence (default: 0.01)
+- `--silence_threshold`: Speech probability threshold, 0.0-1.0 (default: 0.5). Lower values are more sensitive.
 - `--silence_duration`: Seconds of silence to trigger transcription (default: 1.5)
 
 With VAD enabled, transcription is triggered when:
-1. Speech is detected (audio above threshold)
-2. Followed by silence (audio below threshold for the specified duration)
+1. Speech is detected (audio probability above threshold)
+2. Followed by silence (below threshold for the specified duration)
 
-Tip: Use `--adaptive` for automatic threshold adjustment during recording:
-```bash
-asr2clip --daemon --vad --adaptive
-```
-This continuously monitors ambient noise and adjusts the threshold accordingly.
+The Silero VAD model (~629 KB) is downloaded automatically on first use.
 
 ## Troubleshooting
 

@@ -48,8 +48,11 @@ dev = [
     "build>=1.2.2.post1",
     "twine>=6.1.0",
 ]
-local_asr = [
+vad = [
     "sherpa-onnx>=1.10.0",
+]
+local_asr = [
+    "asr2clip[vad]",
     "fastapi>=0.100.0",
     "uvicorn[standard]>=0.20.0",
     "python-multipart>=0.0.6",
