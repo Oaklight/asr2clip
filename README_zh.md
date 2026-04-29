@@ -126,9 +126,8 @@ asr2clip -i audio.mp3      # 转录音频文件
 ```
 用法: asr2clip [-h] [-v] [-c FILE] [-q] [-i FILE] [-o FILE] [--test]
                [--list_devices] [--device DEV] [-e] [--generate_config]
-               [--print_config] [--vad] [--interval SEC] [--adaptive]
-               [--calibrate] [--silence_threshold RMS]
-               [--silence_duration SEC] [--no_adaptive]
+               [--print_config] [--vad] [--interval SEC]
+               [--silence_threshold PROB] [--silence_duration SEC]
 
 录音并使用 ASR API 转录到剪贴板
 
@@ -150,13 +149,10 @@ asr2clip -i audio.mp3      # 转录音频文件
   --print_config        打印配置模板到 stdout
   --vad                 持续录音，启用语音活动检测
   --interval SEC        持续录音，固定间隔转录（秒）
-  --adaptive            自适应阈值（使用 --vad 时默认启用）
-  --calibrate           从环境噪音校准静音阈值
-  --silence_threshold RMS
-                        静音阈值（默认：自适应自动调整）
+  --silence_threshold PROB
+                        VAD 语音概率阈值，0.0-1.0（默认：0.5）
   --silence_duration SEC
                         触发转录的静音时长（默认：1.5）
-  --no_adaptive         禁用自适应阈值（使用固定阈值）
 ```
 
 ### 示例
@@ -198,37 +194,35 @@ asr2clip --vad --interval 120 -o ~/meeting.txt
 
 ### 语音活动检测（VAD）
 
+VAD 使用 [Silero VAD](https://github.com/snakers4/silero-vad) 神经网络模型（通过 sherpa-onnx）进行可靠的语音检测。需要安装 `vad` 额外依赖：
+
+```bash
+pip install asr2clip[vad]
+```
+
 启用静音检测，在您停止说话时自动转录：
 
 ```bash
 # 检测到静音时自动转录
-asr2clip --daemon --vad
+asr2clip --vad
 
-# 校准静音阈值（测量环境噪音）
-asr2clip --calibrate
+# 使用自定义设置
+asr2clip --vad --silence_threshold 0.3 --silence_duration 2.0
 
-# 启用自适应阈值（实时调整）
-asr2clip --daemon --vad --adaptive
-
-# 使用自定义静音设置
-asr2clip --daemon --vad --silence_threshold 0.005 --silence_duration 2.0
+# 保存转录结果到文件
+asr2clip --vad -o ~/meeting.txt
 ```
 
 VAD 选项：
 - `--vad`：启用语音活动检测
-- `--adaptive`：启用自适应阈值，实时根据环境噪音调整
-- `--calibrate`：测量环境噪音并建议阈值
-- `--silence_threshold`：静音 RMS 阈值（默认：0.01）
+- `--silence_threshold`：语音概率阈值，0.0-1.0（默认：0.5）。值越低越敏感。
 - `--silence_duration`：触发转录的静音时长（秒，默认：1.5）
 
-提示：使用 `--adaptive` 可以在录音过程中自动调整阈值：
-```bash
-asr2clip --daemon --vad --adaptive
-```
-
 启用 VAD 后，转录在以下情况触发：
-1. 检测到语音（音频高于阈值）
-2. 随后是静音（音频低于阈值持续指定时长）
+1. 检测到语音（音频概率高于阈值）
+2. 随后是静音（低于阈值持续指定时长）
+
+Silero VAD 模型（~629 KB）将在首次使用时自动下载。
 
 ## 故障排除
 
