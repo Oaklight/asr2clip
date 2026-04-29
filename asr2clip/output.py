@@ -1,8 +1,6 @@
 """Output handling for asr2clip (clipboard, file, stdout)."""
 
 import os
-import shutil
-import sys
 from datetime import datetime
 
 from .utils import log, print_success, warning
@@ -14,27 +12,13 @@ def check_clipboard_support() -> bool:
     Returns:
         True if clipboard is supported, False otherwise.
     """
-    # Check for xclip (X11)
-    if shutil.which("xclip"):
-        return True
+    try:
+        import copykitten
 
-    # Check for wl-copy (Wayland)
-    if shutil.which("wl-copy"):
+        copykitten.copy("")
         return True
-
-    # Check for xsel (X11 alternative)
-    if shutil.which("xsel"):
-        return True
-
-    # On macOS, pbcopy is always available
-    if sys.platform == "darwin":
-        return True
-
-    # On Windows, clipboard is always available
-    if sys.platform == "win32":
-        return True
-
-    return False
+    except Exception:
+        return False
 
 
 def copy_to_clipboard(text: str) -> bool:
@@ -47,9 +31,9 @@ def copy_to_clipboard(text: str) -> bool:
         True if successful, False otherwise.
     """
     try:
-        import pyperclip
+        import copykitten
 
-        pyperclip.copy(text)
+        copykitten.copy(text)
         return True
     except Exception as e:
         warning(f"Clipboard error: {e}")
@@ -121,8 +105,5 @@ def output_transcript(
 
 def print_clipboard_help():
     """Print help message for clipboard setup."""
-    print("\nClipboard support requires one of the following:")
-    print("  - xclip (X11): sudo apt install xclip")
-    print("  - wl-clipboard (Wayland): sudo apt install wl-clipboard")
-    print("  - xsel (X11): sudo apt install xsel")
-    print("\nAlternatively, use --output to save transcripts to a file.")
+    print("\nClipboard is handled by copykitten (no external tools needed).")
+    print("If clipboard is unavailable, use --output to save transcripts to a file.")

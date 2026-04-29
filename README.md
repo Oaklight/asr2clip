@@ -29,7 +29,7 @@ Before you begin, ensure you have the following ready:
 |------------|---------|-------|-------|---------|
 | **ffmpeg** | Audio format conversion | `apt install ffmpeg` | `brew install ffmpeg` | [Download](https://ffmpeg.org/download.html) |
 | **PortAudio** | Audio recording | `apt install libportaudio2` | `brew install portaudio` | Included with sounddevice |
-| **Clipboard** | Copy to clipboard | `apt install xclip` (X11) or `wl-clipboard` (Wayland) | Built-in | Built-in |
+| **Clipboard** | Copy to clipboard | Built-in (copykitten) | Built-in | Built-in |
 
 ## Installation
 

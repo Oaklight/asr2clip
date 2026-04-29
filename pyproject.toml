@@ -27,7 +27,7 @@ classifiers = [
 ]
 dependencies = [
     "numpy>=1.24.4",
-    "pyperclip>=1.9.0",
+    "copykitten>=1.0.0",
     "sounddevice>=0.5.1",
     "pydub>=0.25.1",
     "audioop-lts>=0.2.1; python_version>='3.13'",

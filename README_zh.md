@@ -29,7 +29,7 @@ asr2clip                   # 开始录音和转录
 |------|------|-------|-------|---------|
 | **ffmpeg** | 音频格式转换 | `apt install ffmpeg` | `brew install ffmpeg` | [下载](https://ffmpeg.org/download.html) |
 | **PortAudio** | 音频录制 | `apt install libportaudio2` | `brew install portaudio` | 随 sounddevice 安装 |
-| **剪贴板** | 复制到剪贴板 | `apt install xclip` (X11) 或 `wl-clipboard` (Wayland) | 内置 | 内置 |
+| **剪贴板** | 复制到剪贴板 | 内置 (copykitten) | 内置 | 内置 |
 
 ## 安装
 
