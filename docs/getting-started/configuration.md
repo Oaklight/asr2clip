@@ -61,8 +61,10 @@ model_name: "SenseVoiceSmall"
 ```yaml
 api_base_url: "http://localhost:8000/v1/"
 api_key: "not-used"
-model_name: "sherpa-onnx"
+model_name: "sensevoice-small"
 ```
+
+详情请参阅[本地 ASR 服务器](../usage/local-asr.md)。
 
 ## 音频设备选择
 
