@@ -146,44 +146,10 @@ class ModelRegistry:
         archive_name = config.download_url.rsplit("/", 1)[-1]
         archive_path = self._models_root / archive_name
 
-        print(f"Downloading model '{config.name}' ...", file=sys.stderr)
-        print(f"  From: {config.download_url}", file=sys.stderr)
-        print(f"  To:   {archive_path}", file=sys.stderr)
+        _download_archive(config.download_url, archive_path, config.name)
+        _extract_archive(archive_path, self._models_root)
 
-        try:
-            with httpclient.get(config.download_url, stream=True, timeout=300) as resp:
-                resp.raise_for_status()
-                total = int(resp.headers.get("content-length", 0))
-                downloaded = 0
-
-                with open(archive_path, "wb") as f:
-                    for chunk in resp.iter_bytes(chunk_size=1024 * 1024):
-                        f.write(chunk)
-                        downloaded += len(chunk)
-                        if total > 0:
-                            pct = downloaded * 100 // total
-                            mb = downloaded / (1024 * 1024)
-                            print(
-                                f"\r  Progress: {mb:.0f} MB ({pct}%)",
-                                end="",
-                                flush=True,
-                                file=sys.stderr,
-                            )
-
-            print(file=sys.stderr)  # newline after progress
-        except httpclient.HTTPError as e:
-            print(f"\nDownload failed: {e}", file=sys.stderr)
-            if archive_path.exists():
-                archive_path.unlink()
-            raise SystemExit(1) from e
-
-        print("Extracting...", file=sys.stderr)
-        with tarfile.open(archive_path, "r:*") as tar:
-            tar.extractall(path=self._models_root)
-
-        archive_path.unlink()
-
-        # If archive extracts to a subdir different from config.dir, handle it
+        # If archive extracts to a subdir different from config.dir, rename it
         if config.archive_subdir and config.archive_subdir != config.dir:
             extracted = self._models_root / config.archive_subdir
             if extracted.is_dir() and not model_dir.exists():
@@ -249,6 +215,65 @@ class ModelRegistry:
 
 
 # -- convenience helpers for CLI / backward compat ---------------------------
+
+
+# -- download / extract helpers ---------------------------------------------
+
+
+def _download_archive(url: str, dest: Path, model_name: str) -> None:
+    """Download a model archive with progress reporting.
+
+    Args:
+        url: URL of the archive.
+        dest: Local path to save the archive.
+        model_name: Human-readable model name for log messages.
+
+    Raises:
+        SystemExit: On HTTP error.
+    """
+    print(f"Downloading model '{model_name}' ...", file=sys.stderr)
+    print(f"  From: {url}", file=sys.stderr)
+    print(f"  To:   {dest}", file=sys.stderr)
+
+    try:
+        with httpclient.get(url, stream=True, timeout=300) as resp:
+            resp.raise_for_status()
+            total = int(resp.headers.get("content-length", 0))
+            downloaded = 0
+
+            with open(dest, "wb") as f:
+                for chunk in resp.iter_bytes(chunk_size=1024 * 1024):
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    if total > 0:
+                        pct = downloaded * 100 // total
+                        mb = downloaded / (1024 * 1024)
+                        print(
+                            f"\r  Progress: {mb:.0f} MB ({pct}%)",
+                            end="",
+                            flush=True,
+                            file=sys.stderr,
+                        )
+
+        print(file=sys.stderr)  # newline after progress
+    except httpclient.HTTPError as e:
+        print(f"\nDownload failed: {e}", file=sys.stderr)
+        if dest.exists():
+            dest.unlink()
+        raise SystemExit(1) from e
+
+
+def _extract_archive(archive_path: Path, extract_dir: Path) -> None:
+    """Extract a tar archive and remove it afterwards.
+
+    Args:
+        archive_path: Path to the archive file.
+        extract_dir: Directory to extract into.
+    """
+    print("Extracting...", file=sys.stderr)
+    with tarfile.open(archive_path, "r:*") as tar:
+        tar.extractall(path=extract_dir)
+    archive_path.unlink()
 
 
 def _default_data_dir() -> Path:
