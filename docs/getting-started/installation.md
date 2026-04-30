@@ -15,7 +15,7 @@ Before installing asr2clip, ensure the following system dependencies are availab
 | **Clipboard** | Copy to clipboard | Built-in (copykitten) | Built-in | Built-in |
 
 !!! note
-    Clipboard access is handled by [copykitten](https://github.com/koenvervloesem/copykitten), which uses native platform APIs directly. No external tools like `xclip` or `wl-clipboard` are needed.
+    Clipboard access is handled by [copykitten](https://github.com/koenvervloesem/copykitten), which uses native platform APIs directly. On **Wayland** sessions, asr2clip prefers `wl-copy` (from `wl-clipboard`) for proper clipboard manager integration (e.g. KDE Klipper). Install it with `apt install wl-clipboard` if not already present. On X11, macOS, and Windows, no external tools are needed.
 
 ## Install via pip or pipx (Recommended)
 

@@ -20,7 +20,12 @@ All notable changes to asr2clip are documented here.
 
 - **Zero external dependencies** — replaced PyYAML with a vendored YAML parser and httpx/requests with a vendored HTTP client; core install now pulls only numpy, sounddevice, pydub, and copykitten
 - **Clipboard library** — replaced pyperclip with [copykitten](https://github.com/koenvervloesem/copykitten) (Rust-based, no external tools like xclip/wl-clipboard needed)
+- **Wayland clipboard** — on Wayland sessions, prefers `wl-copy` for proper clipboard manager integration (e.g. KDE Klipper); falls back to copykitten on X11 or when wl-copy is unavailable
 - Minimum Python version raised from 3.8 to **3.10**
+
+### Fixed
+
+- `-i` flag now correctly triggers file transcription instead of entering continuous recording mode
 
 ## 0.3.8
 
