@@ -1,9 +1,43 @@
 """Output handling for asr2clip (clipboard, file, stdout)."""
 
 import os
+import shutil
+import subprocess
 from datetime import datetime
 
 from .utils import log, print_success, warning
+
+
+def _is_wayland() -> bool:
+    """Check if the current session is running on Wayland."""
+    return bool(os.environ.get("WAYLAND_DISPLAY"))
+
+
+def _has_wl_copy() -> bool:
+    """Check if wl-copy is available."""
+    return shutil.which("wl-copy") is not None
+
+
+def _wl_copy(text: str) -> bool:
+    """Copy text using wl-copy (Wayland native, persists after exit).
+
+    Args:
+        text: Text to copy.
+
+    Returns:
+        True if successful, False otherwise.
+    """
+    try:
+        subprocess.run(
+            ["wl-copy"],
+            input=text,
+            text=True,
+            check=True,
+            timeout=5,
+        )
+        return True
+    except Exception:
+        return False
 
 
 def check_clipboard_support() -> bool:
@@ -12,6 +46,8 @@ def check_clipboard_support() -> bool:
     Returns:
         True if clipboard is supported, False otherwise.
     """
+    if _is_wayland() and _has_wl_copy():
+        return True
     try:
         import copykitten
 
@@ -24,12 +60,21 @@ def check_clipboard_support() -> bool:
 def copy_to_clipboard(text: str) -> bool:
     """Copy text to the system clipboard.
 
+    On Wayland, prefers wl-copy for clipboard manager integration.
+    Falls back to copykitten on X11 or when wl-copy is unavailable.
+
     Args:
         text: Text to copy to clipboard.
 
     Returns:
         True if successful, False otherwise.
     """
+    # Wayland: prefer wl-copy for proper clipboard manager integration
+    if _is_wayland() and _has_wl_copy():
+        if _wl_copy(text):
+            return True
+        # Fall through to copykitten on failure
+
     try:
         import copykitten
 
