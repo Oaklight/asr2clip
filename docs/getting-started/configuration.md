@@ -61,10 +61,10 @@ model_name: "SenseVoiceSmall"
 ```yaml
 api_base_url: "http://localhost:8000/v1/"
 api_key: "not-used"
-model_name: "sensevoice-small"
+model_name: "sensevoice-small"    # must match a model in the server's models.yaml
 ```
 
-See [Local ASR Server](../usage/local-asr.md) for setup instructions.
+The local server supports multiple models via a model registry (`models.yaml`). See [Local ASR Server](../usage/local-asr.md) for setup instructions and model management.
 
 ## Audio Device Selection
 

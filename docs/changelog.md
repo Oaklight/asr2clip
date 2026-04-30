@@ -7,8 +7,13 @@ All notable changes to asr2clip are documented here.
 ### Added
 
 - **Local ASR server** — optional offline transcription powered by [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx), with OpenAI-compatible API (`asr2clip-serve` / `asr2clip --serve`)
-- `--download-model` option to pre-download the SenseVoice model
-- `--host` / `--port` options for local ASR server configuration
+- **Model registry** — YAML-based model management (`models.yaml`) supporting multiple model types (sense_voice, whisper, paraformer, transducer) with lazy loading and auto-download
+- **Multi-model routing** — the `model` API parameter selects which engine to use; models are loaded on first request
+- **Per-request parameters** — `language`, `prompt`, and `temperature` are passed through to the engine where the model supports them; unsupported parameters are silently accepted
+- **Language-specific recognizer caching** — LRU cache of recognizer instances for per-request language hints (configurable cache size, default 3)
+- **SSE streaming** — `stream=true` parameter returns Server-Sent Events (`transcript.text.delta`, `transcript.text.done`, `[DONE]`)
+- `--download-model` option to pre-download the default model
+- `--host` / `--port` / `--config` options for local ASR server configuration
 - CI pipeline with ruff, ty, and complexipy checks
 
 ### Changed
