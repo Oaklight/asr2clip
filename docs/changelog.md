@@ -20,7 +20,12 @@ asr2clip 的所有重要变更均记录在此。
 
 - **零外部依赖** — 使用内置 YAML 解析器和 HTTP 客户端替代 PyYAML 和 httpx/requests；核心安装仅需 numpy、sounddevice、pydub 和 copykitten
 - **剪贴板库** — 使用 [copykitten](https://github.com/koenvervloesem/copykitten)（基于 Rust）替代 pyperclip，无需安装 xclip/wl-clipboard 等外部工具
+- **Wayland 剪贴板** — 在 Wayland 会话下，优先使用 `wl-copy` 以正确集成剪贴板管理器（如 KDE Klipper）；在 X11 或 wl-copy 不可用时回退到 copykitten
 - 最低 Python 版本从 3.8 提升至 **3.10**
+
+### 修复
+
+- `-i` 参数现在能正确触发文件转录，而不再误入持续录音模式
 
 ## 0.3.8
 

@@ -15,7 +15,7 @@
 | **剪贴板** | 复制到剪贴板 | 内置 (copykitten) | 内置 | 内置 |
 
 !!! note
-    剪贴板功能由 [copykitten](https://github.com/koenvervloesem/copykitten) 处理，它直接使用平台原生 API，无需安装 `xclip` 或 `wl-clipboard` 等外部工具。
+    剪贴板功能由 [copykitten](https://github.com/koenvervloesem/copykitten) 处理，它直接使用平台原生 API。在 **Wayland** 会话下，asr2clip 优先使用 `wl-copy`（来自 `wl-clipboard`）以正确集成剪贴板管理器（如 KDE Klipper）。如未安装，请运行 `apt install wl-clipboard`。在 X11、macOS 和 Windows 下无需任何外部工具。
 
 ## 使用 pip 或 pipx 安装（推荐）
 
