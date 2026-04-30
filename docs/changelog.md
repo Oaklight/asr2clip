@@ -7,8 +7,13 @@ asr2clip 的所有重要变更均记录在此。
 ### 新增
 
 - **本地 ASR 服务器** — 基于 [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) 的可选离线转录，提供 OpenAI 兼容 API（`asr2clip-serve` / `asr2clip --serve`）
-- `--download-model` 选项，预下载 SenseVoice 模型
-- `--host` / `--port` 选项，配置本地 ASR 服务器地址
+- **模型注册表** — 基于 YAML 的模型管理（`models.yaml`），支持多种模型类型（sense_voice、whisper、paraformer、transducer），具备懒加载和自动下载功能
+- **多模型路由** — API 的 `model` 参数选择使用哪个引擎；模型在首次请求时加载
+- **逐请求参数** — `language`、`prompt` 和 `temperature` 传递给引擎（取决于模型是否支持），不支持的参数会被静默接受
+- **语言识别器 LRU 缓存** — 按语言缓存识别器实例，支持每次请求不同的语言提示（可配置缓存大小，默认 3 个）
+- **SSE 流式传输** — `stream=true` 参数返回 Server-Sent Events（`transcript.text.delta`、`transcript.text.done`、`[DONE]`）
+- `--download-model` 选项，预下载默认模型
+- `--host` / `--port` / `--config` 选项，配置本地 ASR 服务器
 - CI 流水线，包含 ruff、ty、complexipy 检查
 
 ### 变更

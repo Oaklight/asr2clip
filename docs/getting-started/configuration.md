@@ -61,10 +61,10 @@ model_name: "SenseVoiceSmall"
 ```yaml
 api_base_url: "http://localhost:8000/v1/"
 api_key: "not-used"
-model_name: "sensevoice-small"
+model_name: "sensevoice-small"    # 必须匹配服务器 models.yaml 中的模型名称
 ```
 
-详情请参阅[本地 ASR 服务器](../usage/local-asr.md)。
+本地服务器通过模型注册表（`models.yaml`）支持多种模型。详情请参阅[本地 ASR 服务器](../usage/local-asr.md)了解安装说明和模型管理。
 
 ## 音频设备选择
 
