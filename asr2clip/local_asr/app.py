@@ -1,26 +1,23 @@
 """FastAPI application providing an OpenAI-compatible ASR endpoint."""
 
 import argparse
+import json
 import logging
 import time
 from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator
 
 from fastapi import FastAPI, File, Form, UploadFile
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 
-from .engine import ASREngine
-from .model_manager import (
-    download_model,
-    get_model_paths,
-    resolve_model_dir,
-    validate_model,
-)
+from .engine import ASREngine, TranscriptionResult
+from .model_registry import ModelRegistry, create_registry
 
 logger = logging.getLogger("asr2clip.local_asr")
 
 # Module-level state set during lifespan
-_engine: ASREngine | None = None
-_model_name: str = "sensevoice-small"
+_registry: ModelRegistry | None = None
+_engines: dict[str, ASREngine] = {}
 
 # Configuration passed via module-level setter before app starts
 _config: dict = {}
@@ -29,44 +26,60 @@ _config: dict = {}
 def configure(
     model_dir: str | None = None,
     num_threads: int = 4,
+    config_path: str | None = None,
 ) -> None:
     """Set server configuration before startup.
 
     Args:
-        model_dir: Path to model directory (None for auto-detection).
+        model_dir: Legacy path to model directory (overrides default model dir).
         num_threads: Number of inference threads.
+        config_path: Path to ``models.yaml`` config file.
     """
     _config["model_dir"] = model_dir
     _config["num_threads"] = num_threads
+    _config["config_path"] = config_path
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize the ASR engine on startup."""
-    global _engine
+    """Initialize the model registry and default engine on startup."""
+    global _registry
 
-    model_dir = resolve_model_dir(_config.get("model_dir"))
-    num_threads = _config.get("num_threads", 4)
+    registry = create_registry(
+        config_path=_config.get("config_path"),
+        model_dir=_config.get("model_dir"),
+    )
+    _registry = registry
 
-    if not validate_model(model_dir):
-        logger.info("Model not found at %s, downloading...", model_dir)
-        download_model(model_dir)
+    num_threads = _config.get("num_threads") or registry.num_threads
 
-    model_path, tokens_path = get_model_paths(model_dir)
-    logger.info("Loading model from %s", model_dir)
+    # Pre-load the default model engine
+    default_cfg = registry.get_default_model()
+
+    if not registry.validate_model(default_cfg):
+        logger.info("Default model '%s' not found, downloading...", default_cfg.name)
+        registry.download_model(default_cfg)
+
+    model_dir = registry.model_dir(default_cfg)
+    logger.info("Loading default model '%s' from %s", default_cfg.name, model_dir)
 
     t0 = time.perf_counter()
-    _engine = ASREngine(
-        model_path=str(model_path),
-        tokens_path=str(tokens_path),
-        num_threads=num_threads,
+    engine = ASREngine.from_model_config(
+        default_cfg, model_dir, num_threads=num_threads
     )
     load_ms = (time.perf_counter() - t0) * 1000
-    logger.info("Model loaded in %.0f ms (threads=%d)", load_ms, num_threads)
+    logger.info(
+        "Model '%s' loaded in %.0f ms (threads=%d)",
+        default_cfg.name,
+        load_ms,
+        num_threads,
+    )
+    _engines[default_cfg.name] = engine
 
     yield
 
-    _engine = None
+    _engines.clear()
+    _registry = None
 
 
 app = FastAPI(title="asr2clip local ASR", lifespan=lifespan)
@@ -89,6 +102,70 @@ def _error_response(
     )
 
 
+def _get_engine(model_name: str) -> ASREngine | JSONResponse:
+    """Resolve an engine for *model_name*, lazy-loading if needed.
+
+    Returns the engine on success, or an error JSONResponse on failure.
+    """
+    if _registry is None:
+        return _error_response("ASR engine not initialized", 503, "server_error")
+
+    # Return cached engine
+    if model_name in _engines:
+        return _engines[model_name]
+
+    # Try to lazy-load from registry
+    cfg = _registry.get_model(model_name)
+    if cfg is None:
+        available = [m.name for m in _registry.list_models()]
+        return _error_response(
+            f"Model '{model_name}' not found. Available models: {available}",
+            404,
+            "model_not_found",
+        )
+
+    if not _registry.validate_model(cfg):
+        return _error_response(
+            f"Model '{model_name}' is registered but model files are missing. "
+            f"Expected files in: {_registry.model_dir(cfg)}",
+            503,
+            "server_error",
+        )
+
+    num_threads = _config.get("num_threads") or _registry.num_threads
+    model_dir = _registry.model_dir(cfg)
+    logger.info("Lazy-loading model '%s' from %s", cfg.name, model_dir)
+
+    t0 = time.perf_counter()
+    engine = ASREngine.from_model_config(cfg, model_dir, num_threads=num_threads)
+    load_ms = (time.perf_counter() - t0) * 1000
+    logger.info("Model '%s' loaded in %.0f ms", cfg.name, load_ms)
+
+    _engines[model_name] = engine
+    return engine
+
+
+async def _stream_transcription(
+    result: TranscriptionResult, language: str | None
+) -> AsyncIterator[str]:
+    """Yield SSE events for a transcription result (OpenAI-compatible)."""
+    delta_event = {
+        "type": "transcript.text.delta",
+        "delta": result.text,
+    }
+    yield f"data: {json.dumps(delta_event)}\n\n"
+
+    done_event = {
+        "type": "transcript.text.done",
+        "text": result.text,
+        "duration": round(result.duration, 2),
+        "language": language or "auto",
+    }
+    yield f"data: {json.dumps(done_event)}\n\n"
+
+    yield "data: [DONE]\n\n"
+
+
 @app.post("/v1/audio/transcriptions")
 async def create_transcription(
     file: UploadFile = File(...),
@@ -97,27 +174,32 @@ async def create_transcription(
     language: str | None = Form(None),
     prompt: str | None = Form(None),
     temperature: float = Form(0.0),
+    stream: bool = Form(False),
 ):
     """Transcribe audio to text (OpenAI-compatible endpoint).
 
     Args:
         file: Audio file to transcribe.
-        model: Model name (accepted but ignored; SenseVoice is always used).
+        model: Model name to use for transcription.
         response_format: Response format: "json", "text", or "verbose_json".
-        language: Language hint (accepted but ignored).
-        prompt: Prompt text (accepted but ignored).
-        temperature: Temperature (accepted but ignored).
+        language: Language hint (applied if the model supports it).
+        prompt: Prompt text (applied if the model supports it).
+        temperature: Temperature (applied if the model supports it).
+        stream: If true, return Server-Sent Events stream.
 
     Returns:
         Transcription result in the requested format.
     """
-    if _engine is None:
-        return _error_response("ASR engine not initialized", 503, "server_error")
+    engine_or_err = _get_engine(model)
+    if isinstance(engine_or_err, JSONResponse):
+        return engine_or_err
+    engine = engine_or_err
 
-    if response_format not in ("json", "text", "verbose_json"):
+    valid_formats = ("json", "text", "verbose_json")
+    if response_format not in valid_formats:
         return _error_response(
             f"Unsupported response_format: {response_format}. "
-            "Supported values: json, text, verbose_json",
+            f"Supported values: {', '.join(valid_formats)}",
             400,
         )
 
@@ -129,17 +211,31 @@ async def create_transcription(
 
     try:
         t0 = time.perf_counter()
-        result = _engine.transcribe(audio_data, filename)
+        result = engine.transcribe(
+            audio_data,
+            filename,
+            language=language,
+            prompt=prompt,
+            temperature=temperature,
+        )
         infer_ms = (time.perf_counter() - t0) * 1000
         logger.info(
-            "Transcribed %.1fs audio in %.0f ms: %s",
+            "Transcribed %.1fs audio in %.0f ms (model=%s): %s",
             result.duration,
             infer_ms,
+            model,
             result.text[:80],
         )
     except Exception as e:
         logger.exception("Transcription failed")
         return _error_response(f"Transcription failed: {e}", 500, "server_error")
+
+    # Streaming response
+    if stream:
+        return StreamingResponse(
+            _stream_transcription(result, language),
+            media_type="text/event-stream",
+        )
 
     if response_format == "text":
         return PlainTextResponse(result.text)
@@ -169,24 +265,24 @@ async def create_transcription(
 @app.get("/v1/models")
 async def list_models():
     """List available models (OpenAI-compatible)."""
-    return JSONResponse(
+    if _registry is None:
+        return _error_response("Registry not initialized", 503, "server_error")
+
+    data = [
         {
-            "object": "list",
-            "data": [
-                {
-                    "id": _model_name,
-                    "object": "model",
-                    "owned_by": "local",
-                }
-            ],
+            "id": m.name,
+            "object": "model",
+            "owned_by": "local",
         }
-    )
+        for m in _registry.list_models()
+    ]
+    return JSONResponse({"object": "list", "data": data})
 
 
 @app.get("/health")
 async def health():
     """Health check endpoint."""
-    return JSONResponse({"status": "ok" if _engine is not None else "loading"})
+    return JSONResponse({"status": "ok" if _engines else "loading"})
 
 
 def run_server(
@@ -194,18 +290,20 @@ def run_server(
     port: int = 8000,
     model_dir: str | None = None,
     num_threads: int = 4,
+    config_path: str | None = None,
 ) -> None:
     """Start the ASR server.
 
     Args:
         host: Bind address.
         port: Bind port.
-        model_dir: Path to model directory.
+        model_dir: Legacy path to model directory.
         num_threads: Number of inference threads.
+        config_path: Path to ``models.yaml`` config file.
     """
     import uvicorn
 
-    configure(model_dir=model_dir, num_threads=num_threads)
+    configure(model_dir=model_dir, num_threads=num_threads, config_path=config_path)
     logger.info("Starting asr2clip local ASR server on %s:%d", host, port)
     uvicorn.run(app, host=host, port=port, log_level="info")
 
@@ -226,9 +324,14 @@ def run_server_cli() -> None:
         "--num-threads", type=int, default=4, help="Inference threads (default: 4)"
     )
     parser.add_argument(
+        "--config",
+        default=None,
+        help="Path to models.yaml config file",
+    )
+    parser.add_argument(
         "--download-model",
         action="store_true",
-        help="Download the SenseVoice model and exit",
+        help="Download the default model and exit",
     )
 
     args = parser.parse_args()
@@ -238,8 +341,9 @@ def run_server_cli() -> None:
     )
 
     if args.download_model:
-        model_dir = resolve_model_dir(args.model_dir)
-        download_model(model_dir)
+        registry = create_registry(config_path=args.config, model_dir=args.model_dir)
+        default_cfg = registry.get_default_model()
+        registry.download_model(default_cfg)
         return
 
     run_server(
@@ -247,4 +351,5 @@ def run_server_cli() -> None:
         port=args.port,
         model_dir=args.model_dir,
         num_threads=args.num_threads,
+        config_path=args.config,
     )

@@ -380,10 +380,11 @@ def main():
         from .local_asr import check_deps
 
         check_deps()
-        from .local_asr.model_manager import download_model, resolve_model_dir
+        from .local_asr.model_registry import create_registry
 
-        model_dir = resolve_model_dir(args.model_dir)
-        download_model(model_dir)
+        registry = create_registry(model_dir=args.model_dir)
+        default_cfg = registry.get_default_model()
+        registry.download_model(default_cfg)
         return
 
     _validate_args(args)
