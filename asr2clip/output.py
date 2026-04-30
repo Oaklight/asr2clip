@@ -33,7 +33,7 @@ def copy_to_clipboard(text: str) -> bool:
     try:
         import copykitten
 
-        copykitten.copy(text)
+        copykitten.copy(text, detach=True)
         return True
     except Exception as e:
         warning(f"Clipboard error: {e}")

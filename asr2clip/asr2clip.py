@@ -351,9 +351,6 @@ def _validate_args(args: argparse.Namespace):
     if args.silence_threshold is None:
         args.silence_threshold = 0.5
 
-    if args.interval is None:
-        args.interval = 30.0
-
 
 def main():
     """Main entry point for asr2clip."""
@@ -420,6 +417,11 @@ def main():
 
     device = get_audio_device(config, args.device)
 
+    # File transcription takes priority over continuous modes
+    if args.input:
+        process_file(config, args.input, args.output)
+        return
+
     if args.vad or args.interval is not None:
         api_key, api_base_url, model_name, org_id = get_api_config(config)
         if args.vad:
@@ -431,22 +433,19 @@ def main():
                     "Install with: pip install asr2clip[vad]"
                 )
                 sys.exit(1)
+        interval = args.interval if args.interval is not None else 30.0
         continuous_recording(
             api_key=api_key,
             api_base_url=api_base_url,
             model_name=model_name,
             org_id=org_id,
             device=device,
-            interval=args.interval,
+            interval=interval,
             output_file=args.output,
             vad_enabled=args.vad,
             silence_threshold=args.silence_threshold,
             silence_duration=args.silence_duration,
         )
-        return
-
-    if args.input:
-        process_file(config, args.input, args.output)
         return
 
     process_recording(config, device, args.output)
