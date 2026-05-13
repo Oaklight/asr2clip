@@ -1,0 +1,29 @@
+# See https://pre-commit.com for more information
+repos:
+  # ── Ruff: lint + format ──────────────────────────────────────────
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.12
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  # ── Local hooks (ty, complexipy) ─────────────────────────────────
+  # These require dev dependencies on PATH.
+  # Activate your project virtualenv / conda env before committing.
+  - repo: local
+    hooks:
+      - id: ty
+        name: ty (type check)
+        entry: ty check
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: true
+
+      - id: complexipy
+        name: complexipy (complexity check)
+        entry: complexipy asr2clip/ -e _vendor
+        language: system
+        pass_filenames: false
+        always_run: true

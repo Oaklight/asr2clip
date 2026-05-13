@@ -352,36 +352,86 @@ def _validate_args(args: argparse.Namespace):
         args.silence_threshold = 0.5
 
 
+def _handle_serve(args: argparse.Namespace) -> None:
+    """Start the local ASR server.
+
+    Args:
+        args: Parsed CLI arguments.
+    """
+    from .local_asr import check_deps
+
+    check_deps()
+    from .local_asr.app import run_server
+
+    run_server(
+        host=args.host,
+        port=args.port,
+        model_dir=args.model_dir,
+        num_threads=args.num_threads,
+    )
+
+
+def _handle_download_model(args: argparse.Namespace) -> None:
+    """Download the default ASR model.
+
+    Args:
+        args: Parsed CLI arguments.
+    """
+    from .local_asr import check_deps
+
+    check_deps()
+    from .local_asr.model_registry import create_registry
+
+    registry = create_registry(model_dir=args.model_dir)
+    default_cfg = registry.get_default_model()
+    registry.download_model(default_cfg)
+
+
+def _handle_continuous(args: argparse.Namespace, config: dict, device) -> None:
+    """Run continuous recording mode (VAD or fixed interval).
+
+    Args:
+        args: Parsed CLI arguments.
+        config: Configuration dictionary.
+        device: Audio device name or index.
+    """
+    api_key, api_base_url, model_name, org_id = get_api_config(config)
+    if args.vad:
+        try:
+            __import__("sherpa_onnx")
+        except ImportError:
+            print(
+                "Error: VAD requires sherpa-onnx.\n"
+                "Install with: pip install asr2clip[vad]"
+            )
+            sys.exit(1)
+    interval = args.interval if args.interval is not None else 30.0
+    continuous_recording(
+        api_key=api_key,
+        api_base_url=api_base_url,
+        model_name=model_name,
+        org_id=org_id,
+        device=device,
+        interval=interval,
+        output_file=args.output,
+        vad_enabled=args.vad,
+        silence_threshold=args.silence_threshold,
+        silence_duration=args.silence_duration,
+    )
+
+
 def main():
     """Main entry point for asr2clip."""
     parser = _build_parser()
     args = parser.parse_args()
 
-    # Handle --serve (local ASR server) — before validation
+    # Handle --serve and --download-model before validation
     if args.serve:
-        from .local_asr import check_deps
-
-        check_deps()
-        from .local_asr.app import run_server
-
-        run_server(
-            host=args.host,
-            port=args.port,
-            model_dir=args.model_dir,
-            num_threads=args.num_threads,
-        )
+        _handle_serve(args)
         return
 
-    # Handle --download-model — before validation
     if args.download_model:
-        from .local_asr import check_deps
-
-        check_deps()
-        from .local_asr.model_registry import create_registry
-
-        registry = create_registry(model_dir=args.model_dir)
-        default_cfg = registry.get_default_model()
-        registry.download_model(default_cfg)
+        _handle_download_model(args)
         return
 
     _validate_args(args)
@@ -423,29 +473,7 @@ def main():
         return
 
     if args.vad or args.interval is not None:
-        api_key, api_base_url, model_name, org_id = get_api_config(config)
-        if args.vad:
-            try:
-                __import__("sherpa_onnx")
-            except ImportError:
-                print(
-                    "Error: VAD requires sherpa-onnx.\n"
-                    "Install with: pip install asr2clip[vad]"
-                )
-                sys.exit(1)
-        interval = args.interval if args.interval is not None else 30.0
-        continuous_recording(
-            api_key=api_key,
-            api_base_url=api_base_url,
-            model_name=model_name,
-            org_id=org_id,
-            device=device,
-            interval=interval,
-            output_file=args.output,
-            vad_enabled=args.vad,
-            silence_threshold=args.silence_threshold,
-            silence_duration=args.silence_duration,
-        )
+        _handle_continuous(args, config, device)
         return
 
     process_recording(config, device, args.output)
