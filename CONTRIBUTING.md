@@ -33,6 +33,18 @@ Keep commit messages concise and focused on *why*, not *what*. One logical chang
 - Mention any breaking changes explicitly
 - Ensure `ruff check` passes before submitting
 
+## Adding a New Engine
+
+asr2clip uses an engine abstraction (`engines/base.py`) for ASR backends. To add a new engine:
+
+1. Create `asr2clip/engines/your_engine.py`
+2. Implement the `BaseEngine` interface (`transcribe()`, `test()`, `name`)
+3. Register it in `engines/__init__.py`'s `create_engine()` factory
+4. Add any new dependencies as optional extras in `pyproject.toml`
+5. Submit a PR
+
+See `engines/openai_compat.py` and `engines/sherpa_onnx.py` for reference implementations.
+
 ## AI-Assisted Contributions
 
 Using AI tools (e.g. Claude, Cursor, Copilot) to assist with development is welcome. However:

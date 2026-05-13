@@ -10,26 +10,24 @@ import sys
 
 from . import __version__
 from .audio import (
-    convert_audio_to_wav,
     get_audio_duration,
     list_audio_devices,
     record_audio,
-    save_audio,
+    write_wav,
 )
 from .config import (
     generate_config,
-    get_api_config,
     get_audio_device,
     open_in_editor,
     read_config,
 )
 from .daemon import continuous_recording
+from .engines import create_engine
 from .output import (
     check_clipboard_support,
     output_transcript,
     print_clipboard_help,
 )
-from .transcribe import test_transcription, transcribe_audio
 from .utils import (
     info,
     log,
@@ -43,24 +41,36 @@ from .utils import (
 
 
 def test_config(config: dict) -> bool:
-    """Test the configuration by checking API connectivity.
+    """Test the configuration by checking engine connectivity.
 
     Args:
         config: Configuration dictionary.
 
     Returns:
-        True if configuration is valid and API is accessible.
+        True if configuration is valid and engine is accessible.
     """
-    api_key, api_base_url, model_name, org_id = get_api_config(config)
+    engine = create_engine(config)
 
     info("Testing configuration...")
-    print_key_value("API Base URL", api_base_url)
-    print_key_value("Model", model_name)
-    masked_key = f"{'*' * 8}...{api_key[-4:] if len(api_key) > 4 else '****'}"
-    print_key_value("API Key", masked_key)
+    print_key_value("Engine", engine.name)
+
+    api_key = config.get("api_key", "")
+    if api_key:
+        masked_key = f"{'*' * 8}...{api_key[-4:] if len(api_key) > 4 else '****'}"
+        print_key_value("API Key", masked_key)
     print_separator()
 
-    return test_transcription(api_key, api_base_url, model_name, org_id)
+    success = engine.test()
+    if success:
+        from .utils import print_success
+
+        print_success("Engine connection successful")
+    else:
+        from .utils import print_error
+
+        print_error("Engine connection failed")
+
+    return success
 
 
 def process_recording(
@@ -75,7 +85,7 @@ def process_recording(
         device: Audio device name or index.
         output_file: Optional file to append transcript to.
     """
-    api_key, api_base_url, model_name, org_id = get_api_config(config)
+    engine = create_engine(config)
 
     # Check clipboard support
     if not check_clipboard_support():
@@ -97,35 +107,21 @@ def process_recording(
     log(f"Recorded {duration:.1f} seconds of audio")
     log("Processing...")
 
-    # Save to temp file
-    temp_path = save_audio(audio_data)
+    # Convert numpy audio to WAV bytes
+    audio_bytes = write_wav(audio_data, sample_rate=16000)
 
-    try:
-        # Transcribe
-        text = transcribe_audio(
-            temp_path,
-            api_key,
-            api_base_url,
-            model_name,
-            org_id,
+    # Transcribe
+    result = engine.transcribe(audio_bytes, filename="recording.wav")
+
+    if result.text.strip():
+        output_transcript(
+            result.text,
+            to_clipboard=True,
+            to_stdout=True,
+            to_file=output_file,
         )
-
-        if text.strip():
-            output_transcript(
-                text,
-                to_clipboard=True,
-                to_stdout=True,
-                to_file=output_file,
-            )
-        else:
-            log("No speech detected in the recording.")
-
-    finally:
-        # Clean up temp file
-        try:
-            os.unlink(temp_path)
-        except Exception:
-            pass
+    else:
+        log("No speech detected in the recording.")
 
 
 def process_file(
@@ -140,7 +136,7 @@ def process_file(
         input_file: Path to the audio file.
         output_file: Optional file to append transcript to.
     """
-    api_key, api_base_url, model_name, org_id = get_api_config(config)
+    engine = create_engine(config)
 
     if not os.path.exists(input_file):
         print(f"File not found: {input_file}")
@@ -148,42 +144,24 @@ def process_file(
 
     log(f"Processing file: {input_file}")
 
-    # Convert to WAV if needed
-    if not input_file.lower().endswith(".wav"):
-        log("Converting to WAV format...")
-        temp_path = convert_audio_to_wav(input_file)
-        cleanup_temp = True
-    else:
-        temp_path = input_file
-        cleanup_temp = False
+    # Read the file as bytes
+    with open(input_file, "rb") as f:
+        audio_bytes = f.read()
 
-    try:
-        # Transcribe
-        text = transcribe_audio(
-            temp_path,
-            api_key,
-            api_base_url,
-            model_name,
-            org_id,
+    filename = os.path.basename(input_file)
+
+    # Transcribe
+    result = engine.transcribe(audio_bytes, filename=filename)
+
+    if result.text.strip():
+        output_transcript(
+            result.text,
+            to_clipboard=True,
+            to_stdout=True,
+            to_file=output_file,
         )
-
-        if text.strip():
-            output_transcript(
-                text,
-                to_clipboard=True,
-                to_stdout=True,
-                to_file=output_file,
-            )
-        else:
-            log("No speech detected in the audio file.")
-
-    finally:
-        # Clean up temp file if we created one
-        if cleanup_temp:
-            try:
-                os.unlink(temp_path)
-            except Exception:
-                pass
+    else:
+        log("No speech detected in the audio file.")
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -395,7 +373,6 @@ def _handle_continuous(args: argparse.Namespace, config: dict, device) -> None:
         config: Configuration dictionary.
         device: Audio device name or index.
     """
-    api_key, api_base_url, model_name, org_id = get_api_config(config)
     if args.vad:
         try:
             __import__("sherpa_onnx")
@@ -405,12 +382,10 @@ def _handle_continuous(args: argparse.Namespace, config: dict, device) -> None:
                 "Install with: pip install asr2clip[vad]"
             )
             sys.exit(1)
+    engine = create_engine(config)
     interval = args.interval if args.interval is not None else 30.0
     continuous_recording(
-        api_key=api_key,
-        api_base_url=api_base_url,
-        model_name=model_name,
-        org_id=org_id,
+        engine=engine,
         device=device,
         interval=interval,
         output_file=args.output,

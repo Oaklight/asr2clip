@@ -10,9 +10,9 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from .audio import calculate_rms, get_audio_duration, save_audio
+from .engines import BaseEngine, TranscriptionError
 from .logging import CYAN, GREEN, RED, RESET, YELLOW
 from .output import output_transcript
-from .transcribe import TranscriptionError, transcribe_audio
 from .utils import (
     info,
     is_stop_requested,
@@ -41,10 +41,7 @@ class TranscriptionTask:
 class RecorderConfig:
     """Configuration for the continuous recorder."""
 
-    api_key: str
-    api_base_url: str
-    model_name: str
-    org_id: str | None = None
+    engine: BaseEngine
     device: str | int | None = None
     interval: float = 30.0
     output_file: str | None = None
@@ -125,15 +122,10 @@ def _process_transcription(
         Tuple of (sequence, text, error_message).
     """
     try:
-        text = transcribe_audio(
-            task.audio_path,
-            cfg.api_key,
-            cfg.api_base_url,
-            cfg.model_name,
-            cfg.org_id,
-            raise_on_error=True,
-        )
-        return (task.sequence, text, None)
+        with open(task.audio_path, "rb") as f:
+            audio_data = f.read()
+        result = cfg.engine.transcribe(audio_data, filename="recording.wav")
+        return (task.sequence, result.text, None)
     except TranscriptionError as e:
         return (task.sequence, None, str(e))
     finally:
@@ -307,10 +299,7 @@ def _handle_vad_iteration(
 
 
 def continuous_recording(
-    api_key: str,
-    api_base_url: str,
-    model_name: str,
-    org_id: str | None = None,
+    engine: BaseEngine,
     device: str | int | None = None,
     interval: float = 30.0,
     output_file: str | None = None,
@@ -328,10 +317,7 @@ def continuous_recording(
     Press Ctrl+C once to stop.
 
     Args:
-        api_key: API key for authentication.
-        api_base_url: Base URL of the API.
-        model_name: Name of the model to use.
-        org_id: Optional organization ID.
+        engine: ASR engine instance to use for transcription.
         device: Audio device name or index.
         interval: Transcription interval in seconds (used as max interval with VAD).
         output_file: Optional file to append transcripts to.
@@ -345,10 +331,7 @@ def continuous_recording(
     setup_signal_handlers(daemon_mode=True)
 
     cfg = RecorderConfig(
-        api_key=api_key,
-        api_base_url=api_base_url,
-        model_name=model_name,
-        org_id=org_id,
+        engine=engine,
         device=device,
         interval=interval,
         output_file=output_file,
