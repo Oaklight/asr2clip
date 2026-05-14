@@ -57,6 +57,7 @@ def _download_vad_model(model_path: Path) -> Path:
 
     try:
         with httpclient.get(VAD_MODEL_URL, stream=True, timeout=60) as resp:
+            assert isinstance(resp, httpclient.StreamingResponse)
             resp.raise_for_status()
             with open(model_path, "wb") as f:
                 for chunk in resp.iter_bytes(chunk_size=64 * 1024):

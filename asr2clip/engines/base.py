@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .audio_input import AudioInput
 
 
 class TranscriptionError(Exception):
@@ -26,23 +30,25 @@ class TranscriptionResult:
 class BaseEngine(ABC):
     """Abstract base class for ASR engines.
 
-    An engine takes raw audio bytes and returns transcribed text.
+    An engine takes audio input and returns transcribed text.
     Implementations may call a remote API, run local inference,
     or use any other mechanism.
+
+    Audio is provided via :class:`~asr2clip.engines.AudioInput`, which
+    supports multiple representations (bytes, file path, numpy array).
+    Each engine retrieves whichever format is most natural for it.
     """
 
     @abstractmethod
     def transcribe(
         self,
-        audio_data: bytes,
-        filename: str = "audio.wav",
+        audio: AudioInput,
         language: str | None = None,
     ) -> TranscriptionResult:
-        """Transcribe audio data to text.
+        """Transcribe audio to text.
 
         Args:
-            audio_data: Raw audio file bytes (WAV or any pydub-supported format).
-            filename: Original filename, used for format detection.
+            audio: Audio input (bytes, file, or numpy array).
             language: Optional language hint (e.g. "en", "fi", "zh").
 
         Returns:

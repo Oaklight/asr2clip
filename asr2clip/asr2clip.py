@@ -13,7 +13,6 @@ from .audio import (
     get_audio_duration,
     list_audio_devices,
     record_audio,
-    write_wav,
 )
 from .config import (
     generate_config,
@@ -23,6 +22,7 @@ from .config import (
 )
 from .daemon import continuous_recording
 from .engines import create_engine
+from .engines.audio_input import AudioInput
 from .output import (
     check_clipboard_support,
     output_transcript,
@@ -107,11 +107,11 @@ def process_recording(
     log(f"Recorded {duration:.1f} seconds of audio")
     log("Processing...")
 
-    # Convert numpy audio to WAV bytes
-    audio_bytes = write_wav(audio_data, sample_rate=16000)
+    # Wrap numpy audio in AudioInput (zero-copy for local engines)
+    audio_input = AudioInput.from_numpy(audio_data, sample_rate=16000)
 
     # Transcribe
-    result = engine.transcribe(audio_bytes, filename="recording.wav")
+    result = engine.transcribe(audio_input)
 
     if result.text.strip():
         output_transcript(
@@ -144,14 +144,11 @@ def process_file(
 
     log(f"Processing file: {input_file}")
 
-    # Read the file as bytes
-    with open(input_file, "rb") as f:
-        audio_bytes = f.read()
-
-    filename = os.path.basename(input_file)
+    # Wrap file path in AudioInput (zero-copy for file-based APIs)
+    audio_input = AudioInput.from_file(input_file)
 
     # Transcribe
-    result = engine.transcribe(audio_bytes, filename=filename)
+    result = engine.transcribe(audio_input)
 
     if result.text.strip():
         output_transcript(

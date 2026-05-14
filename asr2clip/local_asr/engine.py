@@ -12,16 +12,16 @@ as ``ASREngine`` for backward compatibility.  New code should import from
 from __future__ import annotations
 
 # Re-export the canonical implementation under the legacy name
+from asr2clip.engines.audio_input import AudioInput
 from asr2clip.engines.base import TranscriptionResult
 from asr2clip.engines.sherpa_onnx import (
     SAMPLE_RATE,
     SherpaOnnxEngine as ASREngine,
-    _audio_bytes_to_numpy,
 )
 
 __all__ = [
     "ASREngine",
+    "AudioInput",
     "TranscriptionResult",
     "SAMPLE_RATE",
-    "_audio_bytes_to_numpy",
 ]

@@ -13,6 +13,8 @@ from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from .engine import ASREngine, TranscriptionResult
 from .model_registry import ModelRegistry, create_registry
 
+from asr2clip.engines.audio_input import AudioInput
+
 logger = logging.getLogger("asr2clip.local_asr")
 
 # Module-level state set during lifespan
@@ -211,13 +213,8 @@ async def create_transcription(
 
     try:
         t0 = time.perf_counter()
-        result = engine.transcribe(
-            audio_data,
-            filename,
-            language=language,
-            prompt=prompt,
-            temperature=temperature,
-        )
+        audio_input = AudioInput.from_bytes(audio_data, filename=filename)
+        result = engine.transcribe(audio_input, language=language)
         infer_ms = (time.perf_counter() - t0) * 1000
         logger.info(
             "Transcribed %.1fs audio in %.0f ms (model=%s): %s",
