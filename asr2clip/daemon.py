@@ -1,11 +1,14 @@
 """Continuous recording (daemon) mode for asr2clip."""
 
+from __future__ import annotations
+
 import os
 import queue
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -23,6 +26,9 @@ from .utils import (
     warning,
 )
 from .vad import VoiceActivityDetector
+
+if TYPE_CHECKING:
+    from .admin.server import TranscriptionStats
 
 # RMS threshold for silence filtering in interval-only mode (no VAD)
 _INTERVAL_SILENCE_RMS = 0.005
@@ -52,6 +58,7 @@ class RecorderConfig:
     silence_duration: float = 1.5
     min_transcribe_interval: float = 0.5
     max_concurrent_transcriptions: int = 3
+    stats: TranscriptionStats | None = None
 
 
 @dataclass
@@ -112,7 +119,7 @@ def _make_audio_callback(state: RecorderState):
 def _process_transcription(
     task: TranscriptionTask,
     cfg: RecorderConfig,
-) -> tuple[int, str | None, str | None]:
+) -> tuple[int, str | None, str | None, float]:
     """Process a transcription task.
 
     Args:
@@ -120,14 +127,14 @@ def _process_transcription(
         cfg: Recorder configuration.
 
     Returns:
-        Tuple of (sequence, text, error_message).
+        Tuple of (sequence, text, error_message, duration).
     """
     try:
         audio_input = AudioInput.from_file(task.audio_path)
         result = cfg.engine.transcribe(audio_input)
-        return (task.sequence, result.text, None)
+        return (task.sequence, result.text, None, task.duration)
     except TranscriptionError as e:
-        return (task.sequence, None, str(e))
+        return (task.sequence, None, str(e), task.duration)
     finally:
         try:
             os.unlink(task.audio_path)
@@ -135,16 +142,21 @@ def _process_transcription(
             pass
 
 
-def _run_output_worker(state: RecorderState, output_file: str | None):
+def _run_output_worker(
+    state: RecorderState,
+    output_file: str | None,
+    stats: TranscriptionStats | None,
+):
     """Output transcription results in order.
 
     Args:
         state: Recorder state.
         output_file: Optional file to append transcripts to.
+        stats: Optional stats collector for admin panel.
     """
     while not is_stop_requested():
         try:
-            sequence, text, error = state.result_queue.get(timeout=0.1)
+            sequence, text, error, duration = state.result_queue.get(timeout=0.1)
         except queue.Empty:
             continue
 
@@ -155,23 +167,35 @@ def _run_output_worker(state: RecorderState, output_file: str | None):
             if is_stop_requested():
                 break
 
-            _output_single_result(text, error, output_file)
+            _output_single_result(text, error, output_file, stats, duration)
             state.next_output_sequence += 1
 
 
-def _output_single_result(text: str | None, error: str | None, output_file: str | None):
+def _output_single_result(
+    text: str | None,
+    error: str | None,
+    output_file: str | None,
+    stats: TranscriptionStats | None = None,
+    duration: float = 0.0,
+):
     """Output a single transcription result.
 
     Args:
         text: Transcribed text (if successful).
         error: Error message (if failed).
         output_file: Optional file to append transcripts to.
+        stats: Optional stats collector for admin panel.
+        duration: Audio duration in seconds.
     """
     if error:
         print(f"\r{RED}✗{RESET} Failed: {error}" + " " * 20, flush=True)
+        if stats is not None:
+            stats.record_error()
     elif text and text.strip():
         print(f"\r{GREEN}✓{RESET} Transcribed" + " " * 30, flush=True)
         output_transcript(text, to_clipboard=True, to_stdout=True, to_file=output_file)
+        if stats is not None:
+            stats.record_success(text, duration)
     else:
         print(f"\r{YELLOW}○{RESET} (no speech)" + " " * 30, flush=True)
 
@@ -233,7 +257,7 @@ def _transcribe_chunks(
             result = future.result()
             state.result_queue.put(result)
         except Exception as e:
-            state.result_queue.put((task.sequence, None, str(e)))
+            state.result_queue.put((task.sequence, None, str(e), task.duration))
         finally:
             with state.task_sequence_lock:
                 state.pending_tasks.pop(task.sequence, None)
@@ -309,6 +333,7 @@ def continuous_recording(
     silence_duration: float = 1.5,
     min_transcribe_interval: float = 0.5,
     max_concurrent_transcriptions: int = 3,
+    stats: TranscriptionStats | None = None,
 ):
     """Run continuous recording mode with periodic transcription.
 
@@ -327,6 +352,7 @@ def continuous_recording(
         silence_duration: Duration of silence to trigger transcription.
         min_transcribe_interval: Minimum interval between transcription triggers (seconds).
         max_concurrent_transcriptions: Maximum number of concurrent transcription requests.
+        stats: Optional TranscriptionStats collector for admin panel.
     """
     setup_signal_handlers(daemon_mode=True)
 
@@ -341,6 +367,7 @@ def continuous_recording(
         silence_duration=silence_duration,
         min_transcribe_interval=min_transcribe_interval,
         max_concurrent_transcriptions=max_concurrent_transcriptions,
+        stats=stats,
     )
 
     _log_startup(cfg)
@@ -356,7 +383,7 @@ def continuous_recording(
     executor = ThreadPoolExecutor(max_workers=max_concurrent_transcriptions)
 
     output_thread = threading.Thread(
-        target=_run_output_worker, args=(state, output_file), daemon=True
+        target=_run_output_worker, args=(state, output_file, stats), daemon=True
     )
     output_thread.start()
 

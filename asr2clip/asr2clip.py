@@ -181,6 +181,10 @@ With output file:
   asr2clip --vad -o meeting.txt    # Save transcripts to file
   asr2clip -i audio.mp3 -o out.txt # Transcribe file and save
 
+Admin panel:
+  asr2clip --vad --admin           # Enable admin panel at :8081
+  asr2clip --vad --admin --admin-port 9000
+
 Setup:
   asr2clip --edit                  # Create/edit configuration
   asr2clip --generate_config       # Create new config file
@@ -274,6 +278,20 @@ Local ASR server:
         metavar="SEC",
         default=1.5,
         help="Silence duration to trigger transcription (default: 1.5)",
+    )
+
+    # Admin panel
+    admin_group = parser.add_argument_group("Admin panel")
+    admin_group.add_argument(
+        "--admin",
+        action="store_true",
+        help="Enable admin panel web UI (default port: 8081)",
+    )
+    admin_group.add_argument(
+        "--admin-port",
+        type=int,
+        default=8081,
+        help="Admin panel port (default: 8081)",
     )
 
     # Local ASR server
@@ -379,17 +397,41 @@ def _handle_continuous(args: argparse.Namespace, config: dict, device) -> None:
                 "Install with: pip install asr2clip[vad]"
             )
             sys.exit(1)
+
+    # Start admin panel if requested
+    admin_server = None
+    stats = None
+    if args.admin:
+        from .admin import AdminServer, TranscriptionStats
+
+        mode = "vad" if args.vad else f"interval ({args.interval or 30.0}s)"
+        stats = TranscriptionStats()
+        admin_server = AdminServer(
+            config=config,
+            stats=stats,
+            port=args.admin_port,
+            mode=mode,
+            device=device,
+        )
+        admin_info = admin_server.start()
+        info(f"Admin panel at: {admin_info.url}")
+
     engine = create_engine(config)
     interval = args.interval if args.interval is not None else 30.0
-    continuous_recording(
-        engine=engine,
-        device=device,
-        interval=interval,
-        output_file=args.output,
-        vad_enabled=args.vad,
-        silence_threshold=args.silence_threshold,
-        silence_duration=args.silence_duration,
-    )
+    try:
+        continuous_recording(
+            engine=engine,
+            device=device,
+            interval=interval,
+            output_file=args.output,
+            vad_enabled=args.vad,
+            silence_threshold=args.silence_threshold,
+            silence_duration=args.silence_duration,
+            stats=stats,
+        )
+    finally:
+        if admin_server is not None:
+            admin_server.stop()
 
 
 def main():

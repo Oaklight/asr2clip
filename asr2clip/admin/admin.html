@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>asr2clip — Admin Panel</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f1117;--surface:#1a1d27;--border:#2a2d3a;
+  --text:#e4e6eb;--muted:#8b8fa3;--accent:#6c8cff;
+  --green:#4ade80;--yellow:#facc15;--red:#f87171;
+  --radius:10px;--gap:16px;
+}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.6;min-height:100vh}
+a{color:var(--accent);text-decoration:none}
+
+/* Header */
+.header{display:flex;align-items:center;justify-content:space-between;padding:20px 32px;border-bottom:1px solid var(--border)}
+.header h1{font-size:1.4rem;font-weight:600;display:flex;align-items:center;gap:10px}
+.header h1 span{font-size:1.6rem}
+.badge{background:var(--accent);color:#fff;font-size:.7rem;padding:2px 8px;border-radius:12px;font-weight:500}
+.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
+.status-dot.ok{background:var(--green)}
+.status-dot.err{background:var(--red)}
+.meta{font-size:.8rem;color:var(--muted)}
+
+/* Layout */
+.container{max-width:1100px;margin:0 auto;padding:24px 32px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:var(--gap)}
+
+/* Cards */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;transition:border-color .2s}
+.card:hover{border-color:var(--accent)}
+.card-title{font-size:.85rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.card-title svg{width:16px;height:16px;opacity:.6}
+
+/* Key-value rows */
+.kv{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)}
+.kv:last-child{border-bottom:none}
+.kv-key{color:var(--muted);font-size:.85rem}
+.kv-val{font-weight:500;font-size:.85rem;text-align:right;max-width:60%;word-break:break-all}
+
+/* Stat numbers */
+.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;text-align:center}
+.stat-num{font-size:1.8rem;font-weight:700;color:var(--accent)}
+.stat-label{font-size:.75rem;color:var(--muted);margin-top:2px}
+.stat-num.warn{color:var(--yellow)}
+.stat-num.err{color:var(--red)}
+
+/* Last transcript */
+.transcript-box{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;margin-top:12px;font-size:.85rem;max-height:120px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;color:var(--muted)}
+.transcript-box.has-text{color:var(--text)}
+
+/* Devices table */
+.dev-table{width:100%;border-collapse:collapse;font-size:.82rem}
+.dev-table th{text-align:left;color:var(--muted);font-weight:500;padding:6px 8px;border-bottom:1px solid var(--border)}
+.dev-table td{padding:6px 8px;border-bottom:1px solid var(--border)}
+.dev-table tr:last-child td{border-bottom:none}
+.dev-table .default-badge{background:var(--green);color:#000;font-size:.65rem;padding:1px 6px;border-radius:8px;font-weight:600;margin-left:6px}
+
+/* Footer */
+.footer{text-align:center;padding:20px;color:var(--muted);font-size:.75rem;border-top:1px solid var(--border);margin-top:32px}
+
+/* Refresh indicator */
+.refresh-bar{height:2px;background:var(--border);position:fixed;top:0;left:0;right:0;z-index:100}
+.refresh-bar .fill{height:100%;background:var(--accent);transition:width 5s linear;width:0}
+.refresh-bar .fill.run{width:100%}
+
+@media(max-width:700px){
+  .header{padding:16px}
+  .container{padding:16px}
+  .stat-grid{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="refresh-bar"><div class="fill" id="refreshFill"></div></div>
+
+<div class="header">
+  <h1>
+    <span>🎙️</span> asr2clip
+    <span class="badge" id="versionBadge">—</span>
+  </h1>
+  <div class="meta">
+    <span class="status-dot ok" id="statusDot"></span>
+    <span id="modeLabel">—</span> · uptime <span id="uptimeLabel">—</span>
+  </div>
+</div>
+
+<div class="container">
+  <div class="grid">
+
+    <!-- Status Card -->
+    <div class="card">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        Status
+      </div>
+      <div class="kv"><span class="kv-key">Mode</span><span class="kv-val" id="sMode">—</span></div>
+      <div class="kv"><span class="kv-key">PID</span><span class="kv-val" id="sPid">—</span></div>
+      <div class="kv"><span class="kv-key">Device</span><span class="kv-val" id="sDevice">—</span></div>
+      <div class="kv"><span class="kv-key">Uptime</span><span class="kv-val" id="sUptime">—</span></div>
+    </div>
+
+    <!-- Config Card -->
+    <div class="card">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+        Configuration
+      </div>
+      <div class="kv"><span class="kv-key">API Base URL</span><span class="kv-val" id="cApiUrl">—</span></div>
+      <div class="kv"><span class="kv-key">Model</span><span class="kv-val" id="cModel">—</span></div>
+      <div class="kv"><span class="kv-key">API Key</span><span class="kv-val" id="cApiKey">—</span></div>
+      <div class="kv"><span class="kv-key">Audio Device</span><span class="kv-val" id="cDevice">—</span></div>
+      <div class="kv"><span class="kv-key">Quiet Mode</span><span class="kv-val" id="cQuiet">—</span></div>
+    </div>
+
+    <!-- Stats Card (full width) -->
+    <div class="card" style="grid-column:1/-1">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+        Transcription Statistics
+      </div>
+      <div class="stat-grid">
+        <div>
+          <div class="stat-num" id="tCount">0</div>
+          <div class="stat-label">Transcriptions</div>
+        </div>
+        <div>
+          <div class="stat-num" id="tDuration">0s</div>
+          <div class="stat-label">Total Audio</div>
+        </div>
+        <div>
+          <div class="stat-num err" id="tErrors">0</div>
+          <div class="stat-label">Errors</div>
+        </div>
+      </div>
+      <div class="transcript-box" id="tLastText">No transcriptions yet.</div>
+    </div>
+
+    <!-- Devices Card -->
+    <div class="card" style="grid-column:1/-1">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+        Audio Input Devices
+      </div>
+      <table class="dev-table">
+        <thead><tr><th>#</th><th>Name</th><th>Channels</th><th>Sample Rate</th></tr></thead>
+        <tbody id="devBody"><tr><td colspan="4" style="color:var(--muted)">Loading...</td></tr></tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+<div class="footer">asr2clip admin panel · auto-refresh every 5 s</div>
+
+<script>
+const REFRESH_MS = 5000;
+
+function fmt_uptime(s) {
+  if (s < 60) return Math.round(s) + 's';
+  if (s < 3600) return Math.floor(s/60) + 'm ' + Math.round(s%60) + 's';
+  const h = Math.floor(s/3600);
+  const m = Math.floor((s%3600)/60);
+  return h + 'h ' + m + 'm';
+}
+
+function fmt_duration(s) {
+  if (s < 60) return s.toFixed(1) + 's';
+  if (s < 3600) return (s/60).toFixed(1) + 'm';
+  return (s/3600).toFixed(1) + 'h';
+}
+
+async function fetchJSON(url) {
+  try {
+    const r = await fetch(url);
+    return await r.json();
+  } catch(e) {
+    return null;
+  }
+}
+
+async function refresh() {
+  // Status
+  const st = await fetchJSON('/api/status');
+  if (st) {
+    document.getElementById('versionBadge').textContent = 'v' + st.version;
+    document.getElementById('modeLabel').textContent = st.mode;
+    document.getElementById('uptimeLabel').textContent = fmt_uptime(st.uptime);
+    document.getElementById('sMode').textContent = st.mode;
+    document.getElementById('sPid').textContent = st.pid;
+    document.getElementById('sDevice').textContent = st.device;
+    document.getElementById('sUptime').textContent = fmt_uptime(st.uptime);
+    document.getElementById('statusDot').className = 'status-dot ok';
+  } else {
+    document.getElementById('statusDot').className = 'status-dot err';
+  }
+
+  // Config
+  const cfg = await fetchJSON('/api/config');
+  if (cfg) {
+    document.getElementById('cApiUrl').textContent = cfg.api_base_url;
+    document.getElementById('cModel').textContent = cfg.model_name;
+    document.getElementById('cApiKey').textContent = cfg.api_key;
+    document.getElementById('cDevice').textContent = cfg.audio_device;
+    document.getElementById('cQuiet').textContent = cfg.quiet ? 'Yes' : 'No';
+  }
+
+  // Stats
+  const stats = await fetchJSON('/api/stats');
+  if (stats) {
+    document.getElementById('tCount').textContent = stats.transcription_count;
+    document.getElementById('tDuration').textContent = fmt_duration(stats.total_duration);
+    document.getElementById('tErrors').textContent = stats.error_count;
+
+    const box = document.getElementById('tLastText');
+    if (stats.last_text) {
+      box.textContent = stats.last_text;
+      box.classList.add('has-text');
+    } else {
+      box.textContent = 'No transcriptions yet.';
+      box.classList.remove('has-text');
+    }
+  }
+
+  // Devices (only first load, then every 30s)
+  if (!refresh._devLoaded || (Date.now() - refresh._devTs) > 30000) {
+    const devs = await fetchJSON('/api/devices');
+    if (devs && devs.devices) {
+      const tbody = document.getElementById('devBody');
+      if (devs.devices.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="color:var(--muted)">No input devices found</td></tr>';
+      } else {
+        tbody.innerHTML = devs.devices.map(d =>
+          `<tr>
+            <td>${d.index}</td>
+            <td>${d.name}${d.is_default ? '<span class="default-badge">DEFAULT</span>' : ''}</td>
+            <td>${d.channels}</td>
+            <td>${d.sample_rate} Hz</td>
+          </tr>`
+        ).join('');
+      }
+      refresh._devLoaded = true;
+      refresh._devTs = Date.now();
+    }
+  }
+}
+
+// Refresh bar animation
+function startRefreshCycle() {
+  const fill = document.getElementById('refreshFill');
+  fill.style.transition = 'none';
+  fill.style.width = '0';
+  // Force reflow
+  void fill.offsetWidth;
+  fill.style.transition = `width ${REFRESH_MS}ms linear`;
+  fill.classList.add('run');
+  fill.style.width = '100%';
+}
+
+refresh();
+startRefreshCycle();
+setInterval(() => {
+  refresh();
+  startRefreshCycle();
+}, REFRESH_MS);
+</script>
+</body>
+</html>

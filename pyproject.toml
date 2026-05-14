@@ -3,10 +3,13 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["asr2clip", "asr2clip.engines", "asr2clip.local_asr", "asr2clip._vendor", "asr2clip._vendor.yaml", "asr2clip._vendor.httpclient"]
+packages = ["asr2clip", "asr2clip.engines", "asr2clip.local_asr", "asr2clip.admin", "asr2clip._vendor", "asr2clip._vendor.yaml", "asr2clip._vendor.httpclient"]
 
 [tool.setuptools.dynamic]
 version = { attr = "asr2clip.__version__" }
+
+[tool.setuptools.package-data]
+"asr2clip.admin" = ["admin.html"]
 
 [project]
 name = "asr2clip"
