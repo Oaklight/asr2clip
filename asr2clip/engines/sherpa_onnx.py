@@ -6,20 +6,17 @@ through the sherpa-onnx OfflineRecognizer API.
 
 from __future__ import annotations
 
-import io
 import logging
 import os
 import time
 from collections import OrderedDict
 from pathlib import Path
 
-import numpy as np
-from pydub import AudioSegment
-
 import sherpa_onnx
 
 from asr2clip.local_asr.model_registry import ModelConfig
 
+from .audio_input import AudioInput
 from .base import BaseEngine, TranscriptionError, TranscriptionResult
 
 logger = logging.getLogger("asr2clip.engines.sherpa_onnx")
@@ -178,15 +175,13 @@ class SherpaOnnxEngine(BaseEngine):
 
     def transcribe(
         self,
-        audio_data: bytes,
-        filename: str = "audio.wav",
+        audio: AudioInput,
         language: str | None = None,
     ) -> TranscriptionResult:
-        """Transcribe audio bytes to text.
+        """Transcribe audio to text.
 
         Args:
-            audio_data: Raw audio file bytes (any format supported by pydub).
-            filename: Original filename for format detection.
+            audio: Audio input (bytes, file, or numpy array).
             language: Language hint (used if the model supports it).
 
         Returns:
@@ -196,7 +191,7 @@ class SherpaOnnxEngine(BaseEngine):
             TranscriptionError: On transcription failure.
         """
         try:
-            audio_array, sr = _audio_bytes_to_numpy(audio_data, filename)
+            audio_array, sr = audio.as_numpy()
             duration = len(audio_array) / sr
 
             recognizer = self._resolve_recognizer(language)
@@ -290,42 +285,3 @@ class SherpaOnnxEngine(BaseEngine):
         kwargs.update(options)
 
         return factory(**kwargs)
-
-
-def _audio_bytes_to_numpy(audio_data: bytes, filename: str) -> tuple[np.ndarray, int]:
-    """Convert audio bytes to mono float32 numpy array at 16 kHz.
-
-    Args:
-        audio_data: Raw audio file bytes.
-        filename: Filename for format detection.
-
-    Returns:
-        Tuple of (audio_array, sample_rate).
-    """
-    buf = io.BytesIO(audio_data)
-
-    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-    fmt_map = {
-        "wav": "wav",
-        "mp3": "mp3",
-        "flac": "flac",
-        "ogg": "ogg",
-        "m4a": "m4a",
-        "mp4": "mp4",
-        "mpeg": "mp3",
-        "mpga": "mp3",
-        "webm": "webm",
-    }
-    fmt = fmt_map.get(ext)
-
-    if fmt:
-        audio = AudioSegment.from_file(buf, format=fmt)
-    else:
-        audio = AudioSegment.from_file(buf)
-
-    audio = audio.set_channels(1).set_frame_rate(SAMPLE_RATE)
-
-    samples = np.array(audio.get_array_of_samples(), dtype=np.float32)
-    samples /= 2 ** (audio.sample_width * 8 - 1)
-
-    return samples, SAMPLE_RATE

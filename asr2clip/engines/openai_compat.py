@@ -7,12 +7,11 @@ servers (asr2clip --serve, faster-whisper-server, etc.).
 
 from __future__ import annotations
 
-import os
-import tempfile
 import time
 
 from asr2clip._vendor.httpclient import httpclient
 
+from .audio_input import AudioInput
 from .base import BaseEngine, TranscriptionError, TranscriptionResult
 
 # Default retry configuration
@@ -56,15 +55,13 @@ class OpenAICompatEngine(BaseEngine):
 
     def transcribe(
         self,
-        audio_data: bytes,
-        filename: str = "audio.wav",
+        audio: AudioInput,
         language: str | None = None,
     ) -> TranscriptionResult:
-        """Transcribe audio data via OpenAI-compatible API.
+        """Transcribe audio via OpenAI-compatible API.
 
         Args:
-            audio_data: Raw audio file bytes.
-            filename: Original filename for content-type detection.
+            audio: Audio input (bytes, file, or numpy array).
             language: Optional language hint (currently unused by most APIs).
 
         Returns:
@@ -73,22 +70,13 @@ class OpenAICompatEngine(BaseEngine):
         Raises:
             TranscriptionError: On transcription failure after retries.
         """
-        # Estimate duration from audio data (WAV header or fallback)
-        duration = _estimate_duration(audio_data)
+        # Estimate duration from raw bytes (WAV header or fallback)
+        duration = _estimate_duration(audio.as_bytes())
 
-        # Write to temp file for the HTTP upload
-        tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
-        try:
-            tmp.write(audio_data)
-            tmp.close()
-
-            text = self._transcribe_with_retries(tmp.name, filename)
-            return TranscriptionResult(text=text, duration=duration)
-        finally:
-            try:
-                os.unlink(tmp.name)
-            except OSError:
-                pass
+        # Get a file path for the HTTP upload (zero-copy if already a file)
+        file_path = audio.as_file()
+        text = self._transcribe_with_retries(file_path, audio.filename)
+        return TranscriptionResult(text=text, duration=duration)
 
     def test(self) -> bool:
         """Test API connectivity by querying the /models endpoint.

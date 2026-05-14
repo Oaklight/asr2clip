@@ -10,10 +10,12 @@ Use :func:`create_engine` to create an engine from a configuration dict.
 
 from __future__ import annotations
 
+from .audio_input import AudioInput
 from .base import BaseEngine, TranscriptionError, TranscriptionResult
 from .openai_compat import OpenAICompatEngine
 
 __all__ = [
+    "AudioInput",
     "BaseEngine",
     "TranscriptionError",
     "TranscriptionResult",

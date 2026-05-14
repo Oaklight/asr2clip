@@ -11,6 +11,7 @@ import numpy as np
 
 from .audio import calculate_rms, get_audio_duration, save_audio
 from .engines import BaseEngine, TranscriptionError
+from .engines.audio_input import AudioInput
 from .logging import CYAN, GREEN, RED, RESET, YELLOW
 from .output import output_transcript
 from .utils import (
@@ -122,9 +123,8 @@ def _process_transcription(
         Tuple of (sequence, text, error_message).
     """
     try:
-        with open(task.audio_path, "rb") as f:
-            audio_data = f.read()
-        result = cfg.engine.transcribe(audio_data, filename="recording.wav")
+        audio_input = AudioInput.from_file(task.audio_path)
+        result = cfg.engine.transcribe(audio_input)
         return (task.sequence, result.text, None)
     except TranscriptionError as e:
         return (task.sequence, None, str(e))

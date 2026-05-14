@@ -237,6 +237,7 @@ def _download_archive(url: str, dest: Path, model_name: str) -> None:
 
     try:
         with httpclient.get(url, stream=True, timeout=300) as resp:
+            assert isinstance(resp, httpclient.StreamingResponse)
             resp.raise_for_status()
             total = int(resp.headers.get("content-length", 0))
             downloaded = 0

@@ -4,9 +4,9 @@
     This module is retained for backward compatibility.  New code should
     use :mod:`asr2clip.engines` directly::
 
-        from asr2clip.engines import create_engine
+        from asr2clip.engines import AudioInput, create_engine
         engine = create_engine(config)
-        result = engine.transcribe(audio_bytes)
+        result = engine.transcribe(AudioInput.from_file("audio.wav"))
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ from __future__ import annotations
 import warnings
 
 from .engines.base import TranscriptionError
+from .engines.audio_input import AudioInput
 from .engines.openai_compat import (
     DEFAULT_MAX_RETRIES,
     DEFAULT_RETRY_DELAY,
@@ -85,9 +86,10 @@ def transcribe_audio(
     import sys
 
     try:
-        result = engine.transcribe(
+        audio_input = AudioInput.from_bytes(
             audio_data, filename=os.path.basename(audio_file_path)
         )
+        result = engine.transcribe(audio_input)
         return result.text
     except TranscriptionError:
         if raise_on_error:
