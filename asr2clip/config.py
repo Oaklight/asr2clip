@@ -29,15 +29,17 @@ model_name: "whisper-1"                     # or other compatible model
 """
 
 CONFIG_TEMPLATE_FULL = """
-engine: openai_compat                      # active engine: openai_compat or sherpa_onnx
+engine: whisper-openai                     # active engine instance name
 
 engines:
-  openai_compat:
+  whisper-openai:
+    type: openai_compat
     api_base_url: "https://api.openai.com/v1/"
     api_key: "YOUR_API_KEY"
     model_name: "whisper-1"
     # org_id: null
-  # sherpa_onnx:
+  # sensevoice-local:
+  #   type: sherpa_onnx
   #   model_name: "sensevoice-small"
   #   num_threads: 4
   #   model_dir: null
@@ -45,6 +47,9 @@ engines:
 # quiet: false                              # optional, `true` only allow errors and transcriptions
 # audio_device: null                        # optional, audio input device (name or index). Use --list_devices to see available devices
 """
+
+# Known engine types
+_KNOWN_ENGINE_TYPES = {"openai_compat", "sherpa_onnx"}
 
 
 def find_config_path(config_file: str | None = None) -> str | None:
@@ -232,40 +237,69 @@ def write_config(config: dict, config_file: str | None = None) -> str:
     return config_path
 
 
+def _is_named_instance_format(engines: dict) -> bool:
+    """Check whether the engines dict uses named instances (with ``type``).
+
+    Args:
+        engines: The ``engines`` sub-dict from config.
+
+    Returns:
+        True if at least one entry has a ``type`` key, indicating
+        the new named-instance format.
+    """
+    return any(isinstance(v, dict) and "type" in v for v in engines.values())
+
+
 def get_engine_config(config: dict, engine_name: str | None = None) -> dict:
     """Extract per-engine configuration from a config dict.
 
-    Supports two config layouts:
+    Supports three config layouts:
 
-    **New (multi-engine)**::
+    **Named instances** (new)::
+
+        engine: whisper-cloud
+        engines:
+          whisper-cloud: { type: openai_compat, api_base_url: ... }
+          sensevoice:    { type: sherpa_onnx, model_name: ... }
+
+    **By-type** (legacy multi-engine)::
 
         engine: sherpa_onnx
         engines:
           openai_compat: { api_base_url: ..., api_key: ... }
           sherpa_onnx:   { model_name: ..., num_threads: 4 }
 
-    **Legacy (flat)**::
+    **Flat** (legacy single-engine)::
 
         api_base_url: ...
         api_key: ...
 
+    The returned dict always contains a ``type`` field so callers
+    can determine the engine backend.
+
     Args:
         config: Full configuration dictionary.
-        engine_name: Engine name to retrieve. If None, uses
-            ``config["engine"]`` or defaults to ``"openai_compat"``.
+        engine_name: Engine instance (or type) name to retrieve.
+            If None, uses ``config["engine"]`` or ``"openai_compat"``.
 
     Returns:
-        Dictionary containing the engine-specific fields.
+        Dictionary containing the engine-specific fields with ``type``.
     """
     if engine_name is None:
         engine_name = config.get("engine", "openai_compat")
 
     engines = config.get("engines")
     if engines and engine_name in engines:
-        return dict(engines[engine_name])
+        ecfg = dict(engines[engine_name])
+        if "type" not in ecfg:
+            # Legacy by-type format: key is the engine type
+            ecfg["type"] = engine_name
+        return ecfg
 
-    # Legacy flat config — return the whole dict
-    return dict(config)
+    # Legacy flat config — assume openai_compat
+    result = dict(config)
+    result.setdefault("type", "openai_compat")
+    return result
 
 
 def get_audio_device(config: dict, cli_device: str | None = None) -> str | int | None:

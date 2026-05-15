@@ -30,8 +30,8 @@ _CORS_HEADERS = {
 # Top-level writable config keys
 _WRITABLE_TOP_KEYS = {"engine", "quiet", "audio_device"}
 
-# Per-engine writable config keys
-_ENGINE_KEYS = {
+# Allowed fields per engine *type* (type itself is always allowed)
+_TYPE_FIELDS: dict[str, set[str]] = {
     "openai_compat": {"api_base_url", "api_key", "model_name", "org_id"},
     "sherpa_onnx": {"model_name", "model_config_path", "model_dir", "num_threads"},
 }
@@ -93,20 +93,25 @@ def _add_cors(response: Response) -> Response:
     return response
 
 
-def _mask_api_key(key: str | None) -> str:
-    """Mask an API key for display.
+def _safe_engine_fields(ecfg: dict) -> dict:
+    """Return engine config fields safe for the API response.
+
+    Strips internal keys (like ``type``) and returns only the fields
+    that belong to the engine's type-specific configuration.
 
     Args:
-        key: The API key to mask.
+        ecfg: Engine instance config dict (must contain ``type``).
 
     Returns:
-        Masked key string.
+        Filtered dict with ``type`` and type-specific fields.
     """
-    if not key:
-        return ""
-    if len(key) <= 8:
-        return "****"
-    return f"{'*' * 8}...{key[-4:]}"
+    etype = ecfg.get("type", "openai_compat")
+    allowed = _TYPE_FIELDS.get(etype, set())
+    result: dict = {"type": etype}
+    for k in allowed:
+        if k in ecfg:
+            result[k] = ecfg[k]
+    return result
 
 
 # ============== Middleware Handlers ==============
@@ -164,34 +169,27 @@ def _handle_status(request: Request) -> Response:
 
 
 def _handle_get_config(request: Request) -> Response:
-    """Return current configuration with per-engine sub-dicts."""
+    """Return current configuration with all engine instances."""
     app = _app(request)
     config = app.config
 
     from ..config import get_engine_config
 
-    openai_cfg = get_engine_config(config, "openai_compat")
-    sherpa_cfg = get_engine_config(config, "sherpa_onnx")
+    # Build engines dict from config
+    engines_out: dict[str, dict] = {}
+    engines_raw = config.get("engines", {})
+    for inst_name in engines_raw:
+        ecfg = get_engine_config(config, inst_name)
+        engines_out[inst_name] = _safe_engine_fields(ecfg)
 
-    safe_config = {
-        "engine": config.get("engine", "openai_compat"),
-        "quiet": config.get("quiet", False),
-        "audio_device": _format_device(config.get("audio_device", app.device)),
-        "engines": {
-            "openai_compat": {
-                "api_base_url": openai_cfg.get("api_base_url", ""),
-                "model_name": openai_cfg.get("model_name", ""),
-                "api_key": _mask_api_key(openai_cfg.get("api_key")),
-                "org_id": openai_cfg.get("org_id", ""),
-            },
-            "sherpa_onnx": {
-                "model_name": sherpa_cfg.get("model_name", ""),
-                "model_dir": sherpa_cfg.get("model_dir", ""),
-                "num_threads": sherpa_cfg.get("num_threads", 4),
-            },
-        },
-    }
-    return _json_response(safe_config)
+    return _json_response(
+        {
+            "engine": config.get("engine", ""),
+            "quiet": config.get("quiet", False),
+            "audio_device": _format_device(config.get("audio_device", app.device)),
+            "engines": engines_out,
+        }
+    )
 
 
 def _parse_json_body(request: Request) -> dict | Response:
@@ -219,17 +217,18 @@ def _parse_json_body(request: Request) -> dict | Response:
 
 
 def _merge_engine_configs(engines_data: dict, config: dict) -> list[str]:
-    """Merge per-engine fields into config, returning updated key names.
+    """Merge per-engine instance fields into config.
 
-    Each engine sub-dict is validated against ``_ENGINE_KEYS`` and only
-    allowed fields are written.
+    Each instance sub-dict must contain a ``type`` field. Fields are
+    validated against ``_TYPE_FIELDS`` for that type.
 
     Args:
-        engines_data: Incoming ``engines`` dict from the request body.
+        engines_data: Incoming ``engines`` dict from the request body,
+            keyed by instance name.
         config: The live application config dict (mutated in place).
 
     Returns:
-        List of dotted key names that were updated (e.g. ``["engines.openai_compat"]``).
+        List of dotted key names that were updated.
     """
     if not engines_data or not isinstance(engines_data, dict):
         return []
@@ -237,15 +236,20 @@ def _merge_engine_configs(engines_data: dict, config: dict) -> list[str]:
     updated: list[str] = []
     config.setdefault("engines", {})
 
-    for eng_name, eng_fields in engines_data.items():
-        allowed = _ENGINE_KEYS.get(eng_name)
-        if not allowed or not isinstance(eng_fields, dict):
+    for inst_name, inst_fields in engines_data.items():
+        if not isinstance(inst_fields, dict):
             continue
-        filtered = {k: v for k, v in eng_fields.items() if k in allowed}
+        etype = inst_fields.get(
+            "type", config.get("engines", {}).get(inst_name, {}).get("type")
+        )
+        allowed = _TYPE_FIELDS.get(etype or "", set())
+        filtered = {k: v for k, v in inst_fields.items() if k in allowed}
+        if etype:
+            filtered["type"] = etype
         if not filtered:
             continue
-        config["engines"].setdefault(eng_name, {}).update(filtered)
-        updated.append(f"engines.{eng_name}")
+        config["engines"].setdefault(inst_name, {}).update(filtered)
+        updated.append(f"engines.{inst_name}")
 
     return updated
 
@@ -310,6 +314,73 @@ def _handle_update_config(request: Request) -> Response:
         return _error_response(400, "Bad Request", "No valid fields provided")
 
     return _persist_config(app.config, updated)
+
+
+def _create_engine_instance(data: dict, config: dict) -> Response:
+    """Create a new engine instance in the config.
+
+    Args:
+        data: Request data with ``name``, ``type``, and optional fields.
+        config: The live config dict (mutated in place).
+
+    Returns:
+        JSON response indicating success or error.
+    """
+    name = data["name"]
+    etype = data.get("type", "")
+    if etype not in _TYPE_FIELDS:
+        return _error_response(400, "Bad Request", f"Unknown engine type: {etype!r}")
+    if name in config.get("engines", {}):
+        return _error_response(409, "Conflict", f"Engine '{name}' already exists")
+
+    allowed = _TYPE_FIELDS[etype]
+    inst = {"type": etype}
+    inst.update({k: v for k, v in data.items() if k in allowed})
+    config.setdefault("engines", {})[name] = inst
+    return _persist_config(config, [f"engines.{name}"])
+
+
+def _delete_engine_instance(name: str, config: dict) -> Response:
+    """Delete an engine instance from the config.
+
+    Args:
+        name: Instance name to delete.
+        config: The live config dict (mutated in place).
+
+    Returns:
+        JSON response indicating success or error.
+    """
+    if name not in config.get("engines", {}):
+        return _error_response(404, "Not Found", f"Engine '{name}' not found")
+    if config.get("engine") == name:
+        return _error_response(400, "Bad Request", "Cannot delete the active engine")
+    del config["engines"][name]
+    return _persist_config(config, [f"engines.{name}(deleted)"])
+
+
+def _handle_manage_engine(request: Request) -> Response:
+    """Create or delete an engine instance.
+
+    Accepts JSON body with ``action`` ("create" or "delete") and ``name``.
+    For "create", ``type`` is also required.
+    """
+    data = _parse_json_body(request)
+    if isinstance(data, Response):
+        return data
+
+    name = data.get("name", "").strip()
+    if not name:
+        return _error_response(400, "Bad Request", "'name' is required")
+    data["name"] = name
+
+    action = data.get("action")
+    app = _app(request)
+
+    if action == "create":
+        return _create_engine_instance(data, app.config)
+    if action == "delete":
+        return _delete_engine_instance(name, app.config)
+    return _error_response(400, "Bad Request", "action must be 'create' or 'delete'")
 
 
 def _handle_devices(request: Request) -> Response:
@@ -601,6 +672,7 @@ def setup_routes(app: AdminApp) -> None:
     app.get("/api/status")(_handle_status)
     app.get("/api/config")(_handle_get_config)
     app.post("/api/config")(_handle_update_config)
+    app.post("/api/engines")(_handle_manage_engine)
     app.get("/api/devices")(_handle_devices)
     app.post("/api/device")(_handle_set_device)
     app.post("/api/restart-engine")(_handle_restart_engine)

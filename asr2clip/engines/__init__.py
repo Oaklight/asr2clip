@@ -47,8 +47,9 @@ def create_engine(config: dict, **kwargs) -> BaseEngine:
     """
     from ..config import get_engine_config
 
-    engine_type = config.get("engine", "openai_compat")
-    ecfg = get_engine_config(config, engine_type)
+    engine_name = config.get("engine", "openai_compat")
+    ecfg = get_engine_config(config, engine_name)
+    engine_type = ecfg.get("type", engine_name)
 
     if engine_type == "openai_compat":
         return OpenAICompatEngine(
