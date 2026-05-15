@@ -38,7 +38,7 @@ button{cursor:pointer;font-family:inherit}
 .header{display:flex;align-items:center;justify-content:space-between;padding:16px 28px;border-bottom:1px solid var(--border);background:var(--surface)}
 .header-left{display:flex;align-items:center;gap:10px}
 .logo{display:flex;align-items:center;gap:8px}
-.logo svg{width:26px;height:26px;color:var(--accent)}
+.logo svg{width:28px;height:24px}
 .logo h1{font-size:1.2rem;font-weight:600}
 .badge{background:var(--accent);color:#fff;font-size:.65rem;padding:2px 8px;border-radius:10px;font-weight:500;letter-spacing:.02em}
 .header-right{display:flex;align-items:center;gap:8px}
@@ -67,13 +67,11 @@ button{cursor:pointer;font-family:inherit}
 /* ===== Placeholder ===== */
 .placeholder{text-align:center;padding:60px 20px;color:var(--muted);font-size:.95rem}
 
-/* ===== Dashboard Grid ===== */
-.dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-@media(max-width:640px){.dash-grid{grid-template-columns:1fr}}
-.dash-full{grid-column:1/-1}
+/* ===== Dashboard ===== */
+.dash-grid{display:flex;flex-direction:column;gap:16px}
 
-/* Status row */
-.status-row{display:flex;flex-wrap:wrap;gap:16px 24px;font-size:.88rem}
+/* Status bar — compact horizontal strip */
+.status-row{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:.88rem;align-items:center}
 .status-item{display:flex;align-items:center;gap:6px}
 .status-item .label{color:var(--muted)}
 .status-item .value{font-weight:500}
@@ -84,15 +82,15 @@ button{cursor:pointer;font-family:inherit}
 /* Stat number */
 .stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
 @media(max-width:640px){.stat-grid{grid-template-columns:1fr}}
-.stat-box{text-align:center;padding:12px 8px;border-radius:8px;background:var(--input-bg)}
+.stat-box{text-align:center;padding:16px 8px;border-radius:8px;background:var(--input-bg)}
 .stat-num{font-size:1.8rem;font-weight:700;line-height:1.2}
 .stat-num.green{color:var(--green)}
 .stat-num.yellow{color:var(--yellow)}
 .stat-num.red{color:var(--red)}
-.stat-label{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:2px}
+.stat-label{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:4px}
 
 /* Last transcription */
-.last-text-box{background:var(--input-bg);border:1px solid var(--input-border);border-radius:8px;padding:14px 16px;font-size:.9rem;min-height:60px;color:var(--text);line-height:1.5;word-break:break-word}
+.last-text-box{background:var(--input-bg);border:1px solid var(--input-border);border-radius:8px;padding:14px 16px;font-size:.9rem;min-height:56px;color:var(--text);line-height:1.5;word-break:break-word}
 .last-text-box.empty{color:var(--muted);font-style:italic}
 .last-meta{font-size:.72rem;color:var(--muted);margin-top:8px}
 
@@ -165,11 +163,20 @@ select.form-input{appearance:auto;cursor:pointer}
 <header class="header">
   <div class="header-left">
     <div class="logo">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-        <line x1="12" y1="19" x2="12" y2="23"/>
-        <line x1="8" y1="23" x2="16" y2="23"/>
+      <svg viewBox="0 0 120 110" xmlns="http://www.w3.org/2000/svg" fill="none">
+        <defs><linearGradient id="logo-g" x1="0" y1="0" x2="120" y2="110" gradientUnits="userSpaceOnUse"><stop stop-color="#4f46e5"/><stop offset="1" stop-color="#7c3aed"/></linearGradient></defs>
+        <rect x="8" y="44" width="7" height="22" rx="3.5" fill="url(#logo-g)" opacity="0.6"/>
+        <rect x="20" y="32" width="7" height="46" rx="3.5" fill="url(#logo-g)" opacity="0.75"/>
+        <rect x="32" y="38" width="7" height="34" rx="3.5" fill="url(#logo-g)" opacity="0.9"/>
+        <rect x="44" y="26" width="7" height="58" rx="3.5" fill="url(#logo-g)"/>
+        <rect x="56" y="42" width="7" height="26" rx="3.5" fill="url(#logo-g)" opacity="0.7"/>
+        <path d="M70 55 L80 55" stroke="url(#logo-g)" stroke-width="2.5" stroke-linecap="round" opacity="0.45"/>
+        <path d="M77 50 L83 55 L77 60" fill="none" stroke="url(#logo-g)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.45"/>
+        <rect x="88" y="28" width="28" height="54" rx="5" stroke="url(#logo-g)" stroke-width="3.5"/>
+        <line x1="95" y1="42" x2="109" y2="42" stroke="url(#logo-g)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+        <line x1="95" y1="50" x2="106" y2="50" stroke="url(#logo-g)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+        <line x1="95" y1="58" x2="109" y2="58" stroke="url(#logo-g)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+        <line x1="95" y1="66" x2="103" y2="66" stroke="url(#logo-g)" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
       </svg>
       <h1>asr2clip</h1>
     </div>
@@ -208,9 +215,8 @@ select.form-input{appearance:auto;cursor:pointer}
 <main class="container">
   <div id="panel-dashboard" class="tab-panel active">
     <div class="dash-grid">
-      <!-- Status Card -->
+      <!-- Status Bar -->
       <div class="card">
-        <div class="card-title" data-i18n="card_status">Status</div>
         <div class="status-row">
           <div class="status-item"><span class="status-dot ok" id="status-dot"></span><span class="value" id="status-mode">--</span></div>
           <div class="status-item"><span class="label">PID:</span><span class="value" id="status-pid">--</span></div>
@@ -218,7 +224,7 @@ select.form-input{appearance:auto;cursor:pointer}
           <div class="status-item"><span class="label" data-i18n="lbl_device">Device:</span><span class="value" id="status-device">--</span></div>
         </div>
       </div>
-      <!-- Statistics Card -->
+      <!-- Statistics -->
       <div class="card">
         <div class="card-title" data-i18n="card_stats">Statistics</div>
         <div class="stat-grid">
@@ -228,7 +234,7 @@ select.form-input{appearance:auto;cursor:pointer}
         </div>
       </div>
       <!-- Last Transcription -->
-      <div class="card dash-full">
+      <div class="card">
         <div class="card-title" data-i18n="card_last_text">Last Transcription</div>
         <div class="last-text-box empty" id="last-text" data-i18n="no_transcription">No transcription yet</div>
         <div class="last-meta" id="last-meta"></div>
@@ -433,6 +439,7 @@ function applyLang(lang) {
 function switchTab(tabName) {
   document.querySelectorAll(".tab-btn").forEach(btn => btn.classList.toggle("active", btn.dataset.tab === tabName));
   document.querySelectorAll(".tab-panel").forEach(p => p.classList.toggle("active", p.id === "panel-" + tabName));
+  localStorage.setItem("asr2clip-tab", tabName);
 }
 
 // ===== Init =====
@@ -442,6 +449,8 @@ document.querySelectorAll(".tab-btn").forEach(btn => btn.addEventListener("click
 
 applyTheme(currentTheme);
 applyLang(currentLang);
+const savedTab = localStorage.getItem("asr2clip-tab");
+if (savedTab) switchTab(savedTab);
 
 // ===== Data Fetching =====
 function formatUptime(s) {
