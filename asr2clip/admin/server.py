@@ -46,6 +46,8 @@ class TranscriptionStats:
         start_time: Epoch time when stats collection started.
     """
 
+    _MAX_HISTORY: int = 50
+
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self.transcription_count: int = 0
@@ -54,6 +56,7 @@ class TranscriptionStats:
         self.last_text: str = ""
         self.last_timestamp: float = 0.0
         self.start_time: float = time.time()
+        self.history: list[dict] = []
 
     def record_success(self, text: str, duration: float) -> None:
         """Record a successful transcription.
@@ -67,6 +70,15 @@ class TranscriptionStats:
             self.total_duration += duration
             self.last_text = text
             self.last_timestamp = time.time()
+            self.history.insert(
+                0,
+                {
+                    "text": text,
+                    "duration": round(duration, 2),
+                    "timestamp": self.last_timestamp,
+                },
+            )
+            self.history = self.history[: self._MAX_HISTORY]
 
     def record_error(self) -> None:
         """Record a failed transcription."""
@@ -88,6 +100,16 @@ class TranscriptionStats:
                 "last_timestamp": self.last_timestamp,
                 "uptime": round(time.time() - self.start_time, 1),
             }
+
+    def get_history(self) -> list[dict]:
+        """Return a copy of the transcription history list.
+
+        Returns:
+            List of history entries, newest first. Each entry contains
+            ``text``, ``duration``, and ``timestamp`` keys.
+        """
+        with self._lock:
+            return list(self.history)
 
 
 class AdminApp(App):

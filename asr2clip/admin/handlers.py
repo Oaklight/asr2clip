@@ -363,6 +363,94 @@ def _handle_stats(request: Request) -> Response:
     return _json_response(app.stats.snapshot())
 
 
+def _handle_history(request: Request) -> Response:
+    """Return transcription history (newest first, max 50 entries)."""
+    app = _app(request)
+    return _json_response({"history": app.stats.get_history()})
+
+
+def _handle_test_record(request: Request) -> Response:
+    """Record audio for a short duration and transcribe it.
+
+    Accepts POST with optional JSON body ``{"duration": 3}``.
+    Duration defaults to 3 seconds and is capped at 10.
+
+    Args:
+        request: The incoming HTTP request.
+
+    Returns:
+        JSON response with transcription text and duration, or an
+        error response on failure.
+    """
+    app = _app(request)
+
+    if app.engine_ref is None or app.engine_ref[0] is None:
+        return _error_response(
+            503,
+            "Unavailable",
+            "No ASR engine available. Start the daemon first.",
+        )
+
+    # Parse optional duration from request body
+    duration = 3
+    if request.body:
+        try:
+            data = request.json()
+            raw = data.get("duration", 3)
+            duration = max(1, min(int(raw), 10))
+        except (json.JSONDecodeError, ValueError, TypeError):
+            duration = 3
+
+    sample_rate = 16000
+    channels = 1
+    device = app.device
+
+    # Record audio
+    try:
+        import sounddevice as sd
+
+        audio_data = sd.rec(
+            int(duration * sample_rate),
+            samplerate=sample_rate,
+            channels=channels,
+            dtype="float32",
+            device=device,
+        )
+        sd.wait()
+    except Exception as e:
+        return _error_response(500, "Recording Error", f"Failed to record audio: {e}")
+
+    # Save to temp file and build AudioInput
+    temp_path: str | None = None
+    try:
+        from ..audio import save_audio
+        from ..engines.audio_input import AudioInput
+
+        temp_path = save_audio(audio_data, sample_rate)
+        audio_input = AudioInput.from_file(temp_path)
+
+        engine = app.engine_ref[0]
+        result = engine.transcribe(audio_input)
+
+        return _json_response(
+            {
+                "success": True,
+                "text": result.text,
+                "duration": round(result.duration, 2),
+            }
+        )
+    except Exception as e:
+        return _error_response(
+            500, "Transcription Error", f"Failed to transcribe audio: {e}"
+        )
+    finally:
+        if temp_path is not None:
+            try:
+                os.unlink(temp_path)
+            except OSError:
+                pass
+
+
 def _format_device(device: str | int | None) -> str:
     """Format device value for display.
 
@@ -401,3 +489,5 @@ def setup_routes(app: AdminApp) -> None:
     app.post("/api/device")(_handle_set_device)
     app.post("/api/restart-engine")(_handle_restart_engine)
     app.get("/api/stats")(_handle_stats)
+    app.get("/api/history")(_handle_history)
+    app.post("/api/test-record")(_handle_test_record)

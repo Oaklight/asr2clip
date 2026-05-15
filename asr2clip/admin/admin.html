@@ -13,7 +13,7 @@
   --text:#1a1d2e;--muted:#6b7085;--accent:#4f6ef7;--accent-hover:#3b5ae0;
   --green:#22c55e;--yellow:#eab308;--red:#ef4444;
   --shadow:0 1px 3px rgba(0,0,0,.08);
-  --card-shadow:0 2px 8px rgba(0,0,0,.06);
+  --card-shadow:0 1px 4px rgba(0,0,0,.05);
   --input-bg:#f8f9fb;--input-border:#d1d5de;
   --tab-bg:#eceef3;--tab-active-bg:#ffffff;
   --toggle-bg:#e2e4ea;--toggle-hover:#d1d5de;
@@ -23,7 +23,7 @@
   --text:#e0e2ea;--muted:#8b8fa8;--accent:#6c8cff;--accent-hover:#8aa4ff;
   --green:#4ade80;--yellow:#facc15;--red:#f87171;
   --shadow:0 1px 3px rgba(0,0,0,.3);
-  --card-shadow:0 2px 8px rgba(0,0,0,.25);
+  --card-shadow:0 1px 4px rgba(0,0,0,.2);
   --input-bg:#242736;--input-border:#363a4d;
   --tab-bg:#1c1f2b;--tab-active-bg:#242736;
   --toggle-bg:#2a2e3d;--toggle-hover:#363a4d;
@@ -55,12 +55,12 @@ button{cursor:pointer;font-family:inherit}
 .tab-btn svg{width:16px;height:16px}
 
 /* ===== Main Content ===== */
-.container{max-width:960px;margin:0 auto;padding:24px 28px}
+.container{max-width:1400px;margin:0 auto;padding:24px 28px}
 .tab-panel{display:none}
 .tab-panel.active{display:block}
 
 /* ===== Cards ===== */
-.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 24px;box-shadow:var(--card-shadow);transition:background .2s,border-color .2s}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px 24px;box-shadow:var(--card-shadow);transition:background .2s,border-color .2s}
 .card+.card{margin-top:16px}
 .card-title{font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:12px}
 
@@ -116,7 +116,7 @@ button{cursor:pointer;font-family:inherit}
 .toggle-switch input:checked+.toggle-slider::before{transform:translateX(20px)}
 
 /* Buttons */
-.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 20px;font-size:.85rem;font-weight:500;border:none;border-radius:8px;cursor:pointer;transition:background .15s}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 20px;font-size:.85rem;font-weight:500;border:none;border-radius:6px;cursor:pointer;transition:background .15s}
 .btn-primary{background:var(--accent);color:#fff}
 .btn-primary:hover{background:var(--accent-hover)}
 .btn-primary:disabled{opacity:.5;cursor:not-allowed}
@@ -155,6 +155,26 @@ select.form-input{appearance:auto;cursor:pointer}
 .device-badge.current{background:color-mix(in srgb, var(--accent) 15%, var(--surface));color:var(--accent)}
 .btn-sm{padding:5px 12px;font-size:.78rem;border-radius:6px}
 .device-empty{text-align:center;padding:40px 20px;color:var(--muted);font-size:.9rem}
+
+/* ===== Two-column Dashboard Grid ===== */
+.dash-two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.dash-col{display:flex;flex-direction:column;gap:16px}
+.dash-col .card{margin-top:0}
+@media(max-width:960px){.dash-two-col{grid-template-columns:1fr}}
+
+/* ===== History List ===== */
+.history-list{max-height:400px;overflow-y:auto;margin-top:8px}
+.history-item{padding:10px 12px;border-bottom:1px solid var(--border);font-size:.85rem;line-height:1.4}
+.history-item:last-child{border-bottom:none}
+.history-text{color:var(--text);word-break:break-word}
+.history-meta{font-size:.72rem;color:var(--muted);margin-top:3px;display:flex;gap:10px}
+.history-empty{text-align:center;padding:32px 16px;color:var(--muted);font-size:.88rem}
+
+/* ===== Test Record ===== */
+.test-row{display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap}
+.test-dur{width:64px;padding:7px 10px;font-size:.85rem;text-align:center}
+.test-result{margin-top:12px;padding:10px 14px;background:var(--input-bg);border:1px solid var(--input-border);border-radius:6px;font-size:.88rem;word-break:break-word;display:none}
+.test-result.visible{display:block}
 </style>
 </head>
 <body>
@@ -215,7 +235,7 @@ select.form-input{appearance:auto;cursor:pointer}
 <main class="container">
   <div id="panel-dashboard" class="tab-panel active">
     <div class="dash-grid">
-      <!-- Status Bar -->
+      <!-- Status Bar — full width -->
       <div class="card">
         <div class="status-row">
           <div class="status-item"><span class="status-dot ok" id="status-dot"></span><span class="value" id="status-mode">--</span></div>
@@ -224,20 +244,44 @@ select.form-input{appearance:auto;cursor:pointer}
           <div class="status-item"><span class="label" data-i18n="lbl_device">Device:</span><span class="value" id="status-device">--</span></div>
         </div>
       </div>
-      <!-- Statistics -->
-      <div class="card">
-        <div class="card-title" data-i18n="card_stats">Statistics</div>
-        <div class="stat-grid">
-          <div class="stat-box"><div class="stat-num green" id="stat-count">0</div><div class="stat-label" data-i18n="stat_transcriptions">Transcriptions</div></div>
-          <div class="stat-box"><div class="stat-num yellow" id="stat-duration">0s</div><div class="stat-label" data-i18n="stat_duration">Total Duration</div></div>
-          <div class="stat-box"><div class="stat-num red" id="stat-errors">0</div><div class="stat-label" data-i18n="stat_errors">Errors</div></div>
+      <!-- Two-column grid -->
+      <div class="dash-two-col">
+        <!-- Left column: Stats + Last Transcription -->
+        <div class="dash-col">
+          <div class="card">
+            <div class="card-title" data-i18n="card_stats">Statistics</div>
+            <div class="stat-grid">
+              <div class="stat-box"><div class="stat-num green" id="stat-count">0</div><div class="stat-label" data-i18n="stat_transcriptions">Transcriptions</div></div>
+              <div class="stat-box"><div class="stat-num yellow" id="stat-duration">0s</div><div class="stat-label" data-i18n="stat_duration">Total Duration</div></div>
+              <div class="stat-box"><div class="stat-num red" id="stat-errors">0</div><div class="stat-label" data-i18n="stat_errors">Errors</div></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title" data-i18n="card_last_text">Last Transcription</div>
+            <div class="last-text-box empty" id="last-text" data-i18n="no_transcription">No transcription yet</div>
+            <div class="last-meta" id="last-meta"></div>
+          </div>
         </div>
-      </div>
-      <!-- Last Transcription -->
-      <div class="card">
-        <div class="card-title" data-i18n="card_last_text">Last Transcription</div>
-        <div class="last-text-box empty" id="last-text" data-i18n="no_transcription">No transcription yet</div>
-        <div class="last-meta" id="last-meta"></div>
+        <!-- Right column: History + Test Record -->
+        <div class="dash-col">
+          <div class="card">
+            <div class="card-title" data-i18n="card_history">Transcription History</div>
+            <div class="history-list" id="history-list">
+              <div class="history-empty" data-i18n="no_history">No history yet</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title" data-i18n="card_test">Test Record</div>
+            <div class="test-row">
+              <button class="btn btn-primary" id="btn-test-record" data-i18n="btn_record">Record</button>
+              <label style="font-size:.82rem;color:var(--muted);display:flex;align-items:center;gap:5px">
+                <span data-i18n="lbl_duration_sec">Duration (sec)</span>
+                <input class="form-input test-dur" id="test-duration" type="number" min="1" max="10" value="3">
+              </label>
+            </div>
+            <div class="test-result" id="test-result"></div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -366,6 +410,14 @@ const I18N = {
     device_set_fail: "Failed to set device",
     lbl_channels: "ch",
     lbl_hz: "Hz",
+    card_history: "Transcription History",
+    no_history: "No history yet",
+    card_test: "Test Record",
+    btn_record: "Record",
+    recording: "Recording...",
+    lbl_duration_sec: "Duration (sec)",
+    test_ok: "Test transcription complete",
+    test_fail: "Test recording failed",
   },
   zh: {
     tab_dashboard: "\u4eea\u8868\u76d8",
@@ -410,6 +462,14 @@ const I18N = {
     device_set_fail: "\u8bbe\u7f6e\u8bbe\u5907\u5931\u8d25",
     lbl_channels: "\u58f0\u9053",
     lbl_hz: "Hz",
+    card_history: "\u8f6c\u5f55\u5386\u53f2",
+    no_history: "\u6682\u65e0\u5386\u53f2\u8bb0\u5f55",
+    card_test: "\u5f55\u97f3\u6d4b\u8bd5",
+    btn_record: "\u5f55\u5236",
+    recording: "\u5f55\u5236\u4e2d...",
+    lbl_duration_sec: "\u65f6\u957f\uff08\u79d2\uff09",
+    test_ok: "\u6d4b\u8bd5\u8f6c\u5f55\u5b8c\u6210",
+    test_fail: "\u6d4b\u8bd5\u5f55\u97f3\u5931\u8d25",
   }
 };
 
@@ -665,6 +725,69 @@ window.setDevice = function(idx) {
 };
 
 loadDevices();
+
+// ===== History =====
+function refreshHistory() {
+  var lang = I18N[currentLang];
+  fetch("/api/history").then(r=>r.json()).then(d=>{
+    var list = document.getElementById("history-list");
+    if (!d.history || d.history.length === 0) {
+      list.innerHTML = '<div class="history-empty">' + lang.no_history + '</div>';
+      return;
+    }
+    var html = "";
+    d.history.forEach(function(h) {
+      var text = h.text || "";
+      if (text.length > 80) text = text.substring(0, 80) + "...";
+      html += '<div class="history-item">'
+        + '<div class="history-text">' + escapeHtml(text) + '</div>'
+        + '<div class="history-meta"><span>' + h.duration + 's</span><span>' + timeAgo(h.timestamp) + '</span></div>'
+        + '</div>';
+    });
+    list.innerHTML = html;
+  }).catch(function(){});
+}
+
+function escapeHtml(s) {
+  var d = document.createElement("div");
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+refreshHistory();
+setInterval(refreshHistory, 5000);
+
+// ===== Test Record =====
+document.getElementById("btn-test-record").addEventListener("click", function() {
+  var btn = this;
+  var lang = I18N[currentLang];
+  var dur = parseInt(document.getElementById("test-duration").value) || 3;
+  dur = Math.max(1, Math.min(dur, 10));
+  btn.disabled = true;
+  btn.textContent = lang.recording;
+  var result = document.getElementById("test-result");
+  result.classList.remove("visible");
+
+  fetch("/api/test-record", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({duration: dur})
+  }).then(r=>r.json()).then(d=>{
+    if (d.success) {
+      showToast(lang.test_ok, "success");
+      result.textContent = d.text || "(empty)";
+      result.classList.add("visible");
+      refreshHistory();
+    } else {
+      showToast(d.message || lang.test_fail, "error");
+    }
+  }).catch(function(){
+    showToast(lang.test_fail, "error");
+  }).finally(function(){
+    btn.disabled = false;
+    btn.textContent = lang.btn_record;
+  });
+});
 </script>
 </body>
 </html>
