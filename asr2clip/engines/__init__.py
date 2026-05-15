@@ -31,9 +31,8 @@ def create_engine(config: dict, **kwargs) -> BaseEngine:
     - Not set or ``"openai_compat"``: :class:`OpenAICompatEngine`
     - ``"sherpa_onnx"``: :class:`SherpaOnnxEngine` (lazy-imported)
 
-    When ``engine`` is not set, behavior is fully backward-compatible
-    with existing config files that only specify ``api_base_url``,
-    ``api_key``, and ``model_name``.
+    Supports both the new multi-engine config layout (with ``engines``
+    sub-dict) and the legacy flat layout.
 
     Args:
         config: Configuration dictionary.
@@ -46,14 +45,17 @@ def create_engine(config: dict, **kwargs) -> BaseEngine:
         ValueError: If the engine type is unknown.
         KeyError: If required config fields are missing.
     """
+    from ..config import get_engine_config
+
     engine_type = config.get("engine", "openai_compat")
+    ecfg = get_engine_config(config, engine_type)
 
     if engine_type == "openai_compat":
         return OpenAICompatEngine(
-            api_base_url=config["api_base_url"],
-            api_key=config["api_key"],
-            model_name=config["model_name"],
-            org_id=config.get("org_id"),
+            api_base_url=ecfg["api_base_url"],
+            api_key=ecfg["api_key"],
+            model_name=ecfg["model_name"],
+            org_id=ecfg.get("org_id"),
             **kwargs,
         )
     elif engine_type == "sherpa_onnx":
@@ -61,10 +63,10 @@ def create_engine(config: dict, **kwargs) -> BaseEngine:
         from .sherpa_onnx import SherpaOnnxEngine
 
         return SherpaOnnxEngine.from_registry(
-            model_name=config.get("model_name"),
-            config_path=config.get("model_config_path"),
-            model_dir=config.get("model_dir"),
-            num_threads=config.get("num_threads", 4),
+            model_name=ecfg.get("model_name"),
+            config_path=ecfg.get("model_config_path"),
+            model_dir=ecfg.get("model_dir"),
+            num_threads=ecfg.get("num_threads", 4),
         )
     else:
         raise ValueError(

@@ -29,22 +29,21 @@ model_name: "whisper-1"                     # or other compatible model
 """
 
 CONFIG_TEMPLATE_FULL = """
-api_base_url: "https://api.openai.com/v1/"  # or other compatible API base URL
-api_key: "YOUR_API_KEY"                     # api key for the platform
-model_name: "whisper-1"                     # or other compatible model
+engine: openai_compat                      # active engine: openai_compat or sherpa_onnx
+
+engines:
+  openai_compat:
+    api_base_url: "https://api.openai.com/v1/"
+    api_key: "YOUR_API_KEY"
+    model_name: "whisper-1"
+    # org_id: null
+  # sherpa_onnx:
+  #   model_name: "sensevoice-small"
+  #   num_threads: 4
+  #   model_dir: null
+
 # quiet: false                              # optional, `true` only allow errors and transcriptions
-# org_id: none                              # optional, only required if you are using OpenAI organization id
 # audio_device: null                        # optional, audio input device (name or index). Use --list_devices to see available devices
-
-# xinference or other selfhosted platform
-# api_base_url: "https://localhost:9997/v1" # or other compatible API base URL
-# api_key: "none-or-random"
-# model_name: "SenseVoiceSmall"             # or other compatible model
-
-# SiliconFlow or other compatible platform
-# api_base_url: "https://api.siliconflow.com/v1/"  # or other compatible API base URL
-# api_key: "YOUR_API_KEY"                          # api key for the platform
-# model_name: "FunAudioLLM/SenseVoiceSmall"
 """
 
 
@@ -231,6 +230,42 @@ def write_config(config: dict, config_file: str | None = None) -> str:
         f.write(yaml.dump(config))
 
     return config_path
+
+
+def get_engine_config(config: dict, engine_name: str | None = None) -> dict:
+    """Extract per-engine configuration from a config dict.
+
+    Supports two config layouts:
+
+    **New (multi-engine)**::
+
+        engine: sherpa_onnx
+        engines:
+          openai_compat: { api_base_url: ..., api_key: ... }
+          sherpa_onnx:   { model_name: ..., num_threads: 4 }
+
+    **Legacy (flat)**::
+
+        api_base_url: ...
+        api_key: ...
+
+    Args:
+        config: Full configuration dictionary.
+        engine_name: Engine name to retrieve. If None, uses
+            ``config["engine"]`` or defaults to ``"openai_compat"``.
+
+    Returns:
+        Dictionary containing the engine-specific fields.
+    """
+    if engine_name is None:
+        engine_name = config.get("engine", "openai_compat")
+
+    engines = config.get("engines")
+    if engines and engine_name in engines:
+        return dict(engines[engine_name])
+
+    # Legacy flat config — return the whole dict
+    return dict(config)
 
 
 def get_audio_device(config: dict, cli_device: str | None = None) -> str | int | None:

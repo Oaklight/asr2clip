@@ -27,16 +27,13 @@ _CORS_HEADERS = {
     "Access-Control-Allow-Headers": "Content-Type",
 }
 
-# Allowed config keys for POST /api/config
-_WRITABLE_CONFIG_KEYS = {
-    "engine",
-    "api_base_url",
-    "api_key",
-    "model_name",
-    "quiet",
-    "model_config_path",
-    "model_dir",
-    "num_threads",
+# Top-level writable config keys
+_WRITABLE_TOP_KEYS = {"engine", "quiet", "audio_device"}
+
+# Per-engine writable config keys
+_ENGINE_KEYS = {
+    "openai_compat": {"api_base_url", "api_key", "model_name", "org_id"},
+    "sherpa_onnx": {"model_name", "model_config_path", "model_dir", "num_threads"},
 }
 
 
@@ -167,30 +164,44 @@ def _handle_status(request: Request) -> Response:
 
 
 def _handle_get_config(request: Request) -> Response:
-    """Return current configuration (with masked API key)."""
+    """Return current configuration with per-engine sub-dicts."""
     app = _app(request)
     config = app.config
 
+    from ..config import get_engine_config
+
+    openai_cfg = get_engine_config(config, "openai_compat")
+    sherpa_cfg = get_engine_config(config, "sherpa_onnx")
+
     safe_config = {
         "engine": config.get("engine", "openai_compat"),
-        "api_base_url": config.get("api_base_url", ""),
-        "model_name": config.get("model_name", ""),
-        "api_key": _mask_api_key(config.get("api_key")),
         "quiet": config.get("quiet", False),
         "audio_device": _format_device(config.get("audio_device", app.device)),
-        "model_config_path": config.get("model_config_path", ""),
-        "model_dir": config.get("model_dir", ""),
-        "num_threads": config.get("num_threads", 4),
+        "engines": {
+            "openai_compat": {
+                "api_base_url": openai_cfg.get("api_base_url", ""),
+                "model_name": openai_cfg.get("model_name", ""),
+                "api_key": _mask_api_key(openai_cfg.get("api_key")),
+                "org_id": openai_cfg.get("org_id", ""),
+            },
+            "sherpa_onnx": {
+                "model_name": sherpa_cfg.get("model_name", ""),
+                "model_dir": sherpa_cfg.get("model_dir", ""),
+                "num_threads": sherpa_cfg.get("num_threads", 4),
+            },
+        },
     }
     return _json_response(safe_config)
 
 
-def _handle_update_config(request: Request) -> Response:
-    """Update configuration fields.
+def _parse_json_body(request: Request) -> dict | Response:
+    """Parse and validate a JSON request body.
 
-    Accepts a JSON body with fields to update. Only whitelisted keys
-    are accepted. Changes are applied to the running config and
-    persisted to disk.
+    Args:
+        request: The incoming HTTP request.
+
+    Returns:
+        Parsed dict on success, or an error Response on failure.
     """
     if not request.body:
         return _error_response(400, "Bad Request", "Request body is required")
@@ -204,31 +215,62 @@ def _handle_update_config(request: Request) -> Response:
         return _error_response(
             400, "Bad Request", "Body must be a non-empty JSON object"
         )
+    return data
 
-    # Filter to allowed keys only
-    updates = {k: v for k, v in data.items() if k in _WRITABLE_CONFIG_KEYS}
-    if not updates:
-        return _error_response(
-            400,
-            "Bad Request",
-            f"No valid fields. Allowed: {sorted(_WRITABLE_CONFIG_KEYS)}",
-        )
 
-    app = _app(request)
-    app.config.update(updates)
+def _merge_engine_configs(engines_data: dict, config: dict) -> list[str]:
+    """Merge per-engine fields into config, returning updated key names.
 
-    # Persist to disk
+    Each engine sub-dict is validated against ``_ENGINE_KEYS`` and only
+    allowed fields are written.
+
+    Args:
+        engines_data: Incoming ``engines`` dict from the request body.
+        config: The live application config dict (mutated in place).
+
+    Returns:
+        List of dotted key names that were updated (e.g. ``["engines.openai_compat"]``).
+    """
+    if not engines_data or not isinstance(engines_data, dict):
+        return []
+
+    updated: list[str] = []
+    config.setdefault("engines", {})
+
+    for eng_name, eng_fields in engines_data.items():
+        allowed = _ENGINE_KEYS.get(eng_name)
+        if not allowed or not isinstance(eng_fields, dict):
+            continue
+        filtered = {k: v for k, v in eng_fields.items() if k in allowed}
+        if not filtered:
+            continue
+        config["engines"].setdefault(eng_name, {}).update(filtered)
+        updated.append(f"engines.{eng_name}")
+
+    return updated
+
+
+def _persist_config(config: dict, updated: list[str]) -> Response:
+    """Write config to disk and return an appropriate JSON response.
+
+    Args:
+        config: The configuration dict to persist.
+        updated: List of keys that were updated.
+
+    Returns:
+        JSON response indicating success or partial failure.
+    """
     try:
         from ..config import write_config
 
-        write_config(app.config)
+        write_config(config)
     except Exception as e:
         return _json_response(
             {
                 "success": True,
                 "message": "Config updated in memory but failed to save to disk",
                 "error": str(e),
-                "updated": list(updates.keys()),
+                "updated": updated,
             }
         )
 
@@ -236,9 +278,38 @@ def _handle_update_config(request: Request) -> Response:
         {
             "success": True,
             "message": "Configuration updated",
-            "updated": list(updates.keys()),
+            "updated": updated,
         }
     )
+
+
+def _handle_update_config(request: Request) -> Response:
+    """Update configuration fields.
+
+    Accepts JSON body with ``engine``, ``quiet``, and an ``engines``
+    sub-dict keyed by engine name. Each engine sub-dict is validated
+    against its allowed keys and merged into the stored config.
+    """
+    data = _parse_json_body(request)
+    if isinstance(data, Response):
+        return data
+
+    app = _app(request)
+    updated: list[str] = []
+
+    # Top-level keys
+    for key in _WRITABLE_TOP_KEYS:
+        if key in data:
+            app.config[key] = data[key]
+            updated.append(key)
+
+    # Per-engine sub-dicts
+    updated.extend(_merge_engine_configs(data.get("engines", {}), app.config))
+
+    if not updated:
+        return _error_response(400, "Bad Request", "No valid fields provided")
+
+    return _persist_config(app.config, updated)
 
 
 def _handle_devices(request: Request) -> Response:
@@ -369,6 +440,31 @@ def _handle_history(request: Request) -> Response:
     return _json_response({"history": app.stats.get_history()})
 
 
+def _handle_models(request: Request) -> Response:
+    """Return registered sherpa-onnx models and their availability."""
+    try:
+        from ..local_asr.model_registry import create_registry
+
+        registry = create_registry()
+        models = []
+        default_name = ""
+        default_cfg = registry.get_default_model()
+        if default_cfg:
+            default_name = default_cfg.name
+        for cfg in registry.list_models():
+            models.append(
+                {
+                    "name": cfg.name,
+                    "type": cfg.type,
+                    "available": registry.validate_model(cfg),
+                    "is_default": cfg.name == default_name,
+                }
+            )
+        return _json_response({"models": models})
+    except Exception as e:
+        return _json_response({"models": [], "error": str(e)})
+
+
 def _handle_test_record(request: Request) -> Response:
     """Record audio for a short duration and transcribe it.
 
@@ -401,22 +497,42 @@ def _handle_test_record(request: Request) -> Response:
         except (json.JSONDecodeError, ValueError, TypeError):
             duration = 3
 
-    sample_rate = 16000
+    target_rate = 16000
     channels = 1
-    device = app.device
+    # sounddevice expects None for system default, not the string "default"
+    device = (
+        app.device if app.device not in (None, "default", "system default") else None
+    )
 
-    # Record audio
+    # Record audio at device's native sample rate, then resample to 16kHz
     try:
         import sounddevice as sd
 
+        dev_info = sd.query_devices(device or sd.default.device[0])
+        native_rate = int(dev_info["default_samplerate"])
+
         audio_data = sd.rec(
-            int(duration * sample_rate),
-            samplerate=sample_rate,
+            int(duration * native_rate),
+            samplerate=native_rate,
             channels=channels,
             dtype="float32",
             device=device,
         )
         sd.wait()
+
+        # Resample to 16kHz if needed
+        if native_rate != target_rate:
+            import numpy as np
+
+            # Simple linear interpolation resample
+            n_target = int(len(audio_data) * target_rate / native_rate)
+            indices = np.linspace(0, len(audio_data) - 1, n_target)
+            audio_data = np.interp(
+                indices, np.arange(len(audio_data)), audio_data[:, 0]
+            )
+            audio_data = audio_data.astype(np.float32).reshape(-1, 1)
+
+        sample_rate = target_rate
     except Exception as e:
         return _error_response(500, "Recording Error", f"Failed to record audio: {e}")
 
@@ -490,4 +606,5 @@ def setup_routes(app: AdminApp) -> None:
     app.post("/api/restart-engine")(_handle_restart_engine)
     app.get("/api/stats")(_handle_stats)
     app.get("/api/history")(_handle_history)
+    app.get("/api/models")(_handle_models)
     app.post("/api/test-record")(_handle_test_record)

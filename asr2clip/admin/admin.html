@@ -323,7 +323,9 @@ select.form-input{appearance:auto;cursor:pointer}
         <div class="section-label" data-i18n="engine_sherpa">Sherpa ONNX (Local)</div>
         <div class="form-group">
           <label class="form-label" data-i18n="lbl_model">Model Name</label>
-          <input class="form-input" id="cfg-sherpa-model" type="text" placeholder="SenseVoiceSmall">
+          <input class="form-input" id="cfg-sherpa-model" type="text" list="sherpa-models-list" placeholder="sensevoice-small">
+          <datalist id="sherpa-models-list"></datalist>
+          <div class="form-hint model-warn" id="model-warn" style="display:none;color:var(--yellow)" data-i18n="model_not_available">Model not downloaded. Run: asr2clip --download-model</div>
         </div>
         <div class="form-group">
           <label class="form-label" data-i18n="lbl_model_dir">Model Directory</label>
@@ -418,6 +420,7 @@ const I18N = {
     lbl_duration_sec: "Duration (sec)",
     test_ok: "Test transcription complete",
     test_fail: "Test recording failed",
+    model_not_available: "Model not downloaded. Run: asr2clip --download-model",
   },
   zh: {
     tab_dashboard: "\u4eea\u8868\u76d8",
@@ -470,6 +473,7 @@ const I18N = {
     lbl_duration_sec: "\u65f6\u957f\uff08\u79d2\uff09",
     test_ok: "\u6d4b\u8bd5\u8f6c\u5f55\u5b8c\u6210",
     test_fail: "\u6d4b\u8bd5\u5f55\u97f3\u5931\u8d25",
+    model_not_available: "\u6a21\u578b\u672a\u4e0b\u8f7d\u3002\u8bf7\u8fd0\u884c: asr2clip --download-model",
   }
 };
 
@@ -599,40 +603,87 @@ function loadConfig() {
     initialEngine = engine;
     document.getElementById("cfg-engine").value = engine;
     toggleEngineFields(engine);
+    // Read from engines sub-dicts
+    var oe = (d.engines && d.engines.openai_compat) || {};
+    var se = (d.engines && d.engines.sherpa_onnx) || {};
     // OpenAI fields
-    document.getElementById("cfg-api-url").value = d.api_base_url || "";
-    document.getElementById("cfg-model").value = d.model_name || "";
-    document.getElementById("cfg-api-key").value = d.api_key || "";
-    document.getElementById("cfg-api-key").placeholder = d.api_key ? d.api_key : "sk-...";
+    document.getElementById("cfg-api-url").value = oe.api_base_url || "";
+    document.getElementById("cfg-model").value = oe.model_name || "";
+    document.getElementById("cfg-api-key").value = oe.api_key || "";
+    document.getElementById("cfg-api-key").placeholder = oe.api_key ? oe.api_key : "sk-...";
     // Sherpa fields
-    document.getElementById("cfg-sherpa-model").value = (engine === "sherpa_onnx" ? d.model_name : "") || "";
-    document.getElementById("cfg-model-dir").value = d.model_dir || "";
-    document.getElementById("cfg-threads").value = d.num_threads || 4;
+    document.getElementById("cfg-sherpa-model").value = se.model_name || "";
+    document.getElementById("cfg-model-dir").value = se.model_dir || "";
+    document.getElementById("cfg-threads").value = se.num_threads || 4;
     // General
     document.getElementById("cfg-quiet").checked = !!d.quiet;
+    // Load model list for sherpa
+    loadModels();
   }).catch(()=>{});
 }
+
+// ===== Model list for sherpa_onnx =====
+var _modelData = [];
+
+function loadModels() {
+  fetch("/api/models").then(r=>r.json()).then(d=>{
+    _modelData = d.models || [];
+    var dl = document.getElementById("sherpa-models-list");
+    dl.innerHTML = "";
+    _modelData.forEach(function(m) {
+      var opt = document.createElement("option");
+      var suffix = m.available ? "" : " (not downloaded)";
+      if (m.is_default) suffix += " [default]";
+      opt.value = m.name;
+      opt.label = m.name + suffix;
+      dl.appendChild(opt);
+    });
+    checkModelAvailability();
+  }).catch(function(){});
+}
+
+function checkModelAvailability() {
+  var name = document.getElementById("cfg-sherpa-model").value.trim();
+  var warn = document.getElementById("model-warn");
+  if (!name) { warn.style.display = "none"; return; }
+  var found = _modelData.find(function(m) { return m.name === name; });
+  if (found && !found.available) {
+    warn.style.display = "block";
+  } else if (!found && _modelData.length > 0) {
+    warn.textContent = (I18N[currentLang].model_not_available || "").replace("asr2clip --download-model", "asr2clip --download-model");
+    warn.style.display = "block";
+  } else {
+    warn.style.display = "none";
+  }
+}
+
+document.getElementById("cfg-sherpa-model").addEventListener("input", checkModelAvailability);
 
 document.getElementById("btn-save-config").addEventListener("click", function() {
   var btn = this;
   btn.disabled = true;
   var engine = document.getElementById("cfg-engine").value;
-  var body = { engine: engine, quiet: document.getElementById("cfg-quiet").checked };
+  var body = { engine: engine, quiet: document.getElementById("cfg-quiet").checked, engines: {} };
 
+  // Always send the current engine's fields
   if (engine === "openai_compat") {
+    var oe = {};
     var url = document.getElementById("cfg-api-url").value.trim();
     var model = document.getElementById("cfg-model").value.trim();
     var key = document.getElementById("cfg-api-key").value.trim();
-    if (url) body.api_base_url = url;
-    if (model) body.model_name = model;
-    if (key && !key.includes("*")) body.api_key = key;
+    if (url) oe.api_base_url = url;
+    if (model) oe.model_name = model;
+    if (key && !key.includes("*")) oe.api_key = key;
+    body.engines.openai_compat = oe;
   } else {
+    var se = {};
     var smodel = document.getElementById("cfg-sherpa-model").value.trim();
     var mdir = document.getElementById("cfg-model-dir").value.trim();
     var threads = parseInt(document.getElementById("cfg-threads").value) || 4;
-    if (smodel) body.model_name = smodel;
-    if (mdir) body.model_dir = mdir;
-    body.num_threads = threads;
+    if (smodel) se.model_name = smodel;
+    if (mdir) se.model_dir = mdir;
+    se.num_threads = threads;
+    body.engines.sherpa_onnx = se;
   }
 
   fetch("/api/config", {

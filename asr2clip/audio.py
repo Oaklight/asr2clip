@@ -69,6 +69,46 @@ def write_wav(audio_data: np.ndarray, sample_rate: int, channels: int = 1) -> by
     return buffer.getvalue()
 
 
+def _resample(audio: np.ndarray, src_rate: int, dst_rate: int) -> np.ndarray:
+    """Resample single-channel audio via linear interpolation.
+
+    Args:
+        audio: 1-D float32 audio array.
+        src_rate: Source sample rate.
+        dst_rate: Target sample rate.
+
+    Returns:
+        Resampled audio array.
+    """
+    n_target = int(len(audio) * dst_rate / src_rate)
+    indices = np.linspace(0, len(audio) - 1, n_target)
+    return np.interp(indices, np.arange(len(audio)), audio).astype(np.float32)
+
+
+def _resolve_sample_rate(requested: int, device: str | int | None) -> tuple[int, int]:
+    """Determine the actual recording rate and target output rate.
+
+    If the device supports the requested rate, use it directly.
+    Otherwise fall back to the device's default sample rate and
+    resample afterwards.
+
+    Args:
+        requested: Desired sample rate (e.g. 16000).
+        device: Audio device identifier or None for default.
+
+    Returns:
+        Tuple of (recording_rate, target_rate).
+    """
+    try:
+        sd.check_input_settings(device=device, samplerate=requested)
+        return requested, requested
+    except Exception:
+        dev_info = sd.query_devices(device, kind="input")
+        native = int(dev_info["default_samplerate"])
+        log(f"Device does not support {requested}Hz, recording at {native}Hz")
+        return native, requested
+
+
 def record_audio(
     sample_rate: int = 16000,
     channels: int = 1,
@@ -77,16 +117,21 @@ def record_audio(
 ) -> np.ndarray:
     """Record audio from the microphone until stop is requested.
 
+    If the device does not support the requested sample rate, audio is
+    recorded at the device's native rate and resampled to ``sample_rate``.
+
     Args:
-        sample_rate: Sample rate in Hz.
+        sample_rate: Target sample rate in Hz.
         channels: Number of audio channels.
         device: Audio device name or index, or None for default.
         callback: Optional callback function called with each audio chunk.
 
     Returns:
-        Recorded audio as numpy array.
+        Recorded audio as numpy array at the requested sample rate.
     """
-    audio_chunks = []
+    rec_rate, target_rate = _resolve_sample_rate(sample_rate, device)
+
+    audio_chunks: list[np.ndarray] = []
 
     def audio_callback(indata, frames, time, status):
         if status:
@@ -98,7 +143,7 @@ def record_audio(
 
     try:
         with sd.InputStream(
-            samplerate=sample_rate,
+            samplerate=rec_rate,
             channels=channels,
             dtype="float32",
             device=device,
@@ -112,9 +157,18 @@ def record_audio(
         log(f"Recording error: {e}")
         raise
 
-    if audio_chunks:
-        return np.concatenate(audio_chunks, axis=0)
-    return np.array([], dtype=np.float32)
+    if not audio_chunks:
+        return np.array([], dtype=np.float32)
+
+    audio = np.concatenate(audio_chunks, axis=0)
+
+    # Resample if device rate differs from target
+    if rec_rate != target_rate:
+        mono = audio[:, 0] if audio.ndim > 1 else audio
+        resampled = _resample(mono, rec_rate, target_rate)
+        return resampled.reshape(-1, 1) if audio.ndim > 1 else resampled
+
+    return audio
 
 
 def save_audio(audio_data: np.ndarray, sample_rate: int = 16000) -> str:
