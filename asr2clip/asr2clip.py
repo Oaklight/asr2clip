@@ -417,6 +417,11 @@ def _handle_continuous(args: argparse.Namespace, config: dict, device) -> None:
         info(f"Admin panel at: {admin_info.url}")
 
     engine = create_engine(config)
+    engine_ref = [engine] if admin_server is not None else None
+    if admin_server is not None:
+        assert engine_ref is not None
+        admin_server.set_engine_ref(engine_ref)
+
     interval = args.interval if args.interval is not None else 30.0
     try:
         continuous_recording(
@@ -428,6 +433,7 @@ def _handle_continuous(args: argparse.Namespace, config: dict, device) -> None:
             silence_threshold=args.silence_threshold,
             silence_duration=args.silence_duration,
             stats=stats,
+            engine_ref=engine_ref,
         )
     finally:
         if admin_server is not None:

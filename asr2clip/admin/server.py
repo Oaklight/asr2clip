@@ -98,12 +98,16 @@ class AdminApp(App):
         stats: Transcription statistics collector.
         mode: The current operating mode (e.g. "vad", "interval", "serve").
         device: The audio device in use.
+        engine_ref: Mutable list holding the current engine instance.
+            Shared with the daemon so that hot-reloading is possible
+            by replacing ``engine_ref[0]``.
     """
 
     config: dict
     stats: TranscriptionStats
     mode: str
     device: str | int | None
+    engine_ref: list | None
 
 
 class AdminServer:
@@ -170,6 +174,7 @@ class AdminServer:
         self._app.stats = self._stats
         self._app.mode = self._mode
         self._app.device = self._device
+        self._app.engine_ref = None
 
         # Register routes
         from .handlers import setup_routes
@@ -249,6 +254,16 @@ class AdminServer:
         self._app = None
         self._started.clear()
         logger.info("Admin server stopped")
+
+    def set_engine_ref(self, engine_ref: list) -> None:
+        """Set the shared engine reference.
+
+        Args:
+            engine_ref: Mutable list where ``engine_ref[0]`` is the
+                current engine instance. Shared with the daemon loop.
+        """
+        if self._app is not None:
+            self._app.engine_ref = engine_ref
 
     def is_running(self) -> bool:
         """Check if server is running.

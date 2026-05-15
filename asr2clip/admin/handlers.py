@@ -2,30 +2,41 @@
 
 This module provides route registration for the admin panel using
 the zerodep httpserver, implementing REST API endpoints for status
-monitoring and configuration inspection.
+monitoring, configuration management, and device control.
 """
 
 from __future__ import annotations
 
 import json
 import os
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, cast
 
 from asr2clip import __version__
 
 from .._vendor.httpserver import Request, Response
 from .static import ADMIN_HTML
 
-if TYPE_CHECKING:
-    from .server import AdminApp
+from .server import AdminApp
 
 
 # ============== CORS Constants ==============
 
 _CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
+}
+
+# Allowed config keys for POST /api/config
+_WRITABLE_CONFIG_KEYS = {
+    "engine",
+    "api_base_url",
+    "api_key",
+    "model_name",
+    "quiet",
+    "model_config_path",
+    "model_dir",
+    "num_threads",
 }
 
 
@@ -34,8 +45,6 @@ _CORS_HEADERS = {
 
 def _app(request: Request) -> AdminApp:
     """Get the typed AdminApp from a request."""
-    from .server import AdminApp
-
     return cast(AdminApp, request.app)
 
 
@@ -97,7 +106,7 @@ def _mask_api_key(key: str | None) -> str:
         Masked key string.
     """
     if not key:
-        return "(not set)"
+        return ""
     if len(key) <= 8:
         return "****"
     return f"{'*' * 8}...{key[-4:]}"
@@ -157,42 +166,195 @@ def _handle_status(request: Request) -> Response:
     )
 
 
-def _handle_config(request: Request) -> Response:
+def _handle_get_config(request: Request) -> Response:
     """Return current configuration (with masked API key)."""
     app = _app(request)
     config = app.config
 
     safe_config = {
-        "api_base_url": config.get("api_base_url", "(not set)"),
-        "model_name": config.get("model_name", "(not set)"),
+        "engine": config.get("engine", "openai_compat"),
+        "api_base_url": config.get("api_base_url", ""),
+        "model_name": config.get("model_name", ""),
         "api_key": _mask_api_key(config.get("api_key")),
         "quiet": config.get("quiet", False),
         "audio_device": _format_device(config.get("audio_device", app.device)),
+        "model_config_path": config.get("model_config_path", ""),
+        "model_dir": config.get("model_dir", ""),
+        "num_threads": config.get("num_threads", 4),
     }
     return _json_response(safe_config)
 
 
+def _handle_update_config(request: Request) -> Response:
+    """Update configuration fields.
+
+    Accepts a JSON body with fields to update. Only whitelisted keys
+    are accepted. Changes are applied to the running config and
+    persisted to disk.
+    """
+    if not request.body:
+        return _error_response(400, "Bad Request", "Request body is required")
+
+    try:
+        data = request.json()
+    except (json.JSONDecodeError, ValueError) as e:
+        return _error_response(400, "Bad Request", f"Invalid JSON: {e}")
+
+    if not isinstance(data, dict) or not data:
+        return _error_response(
+            400, "Bad Request", "Body must be a non-empty JSON object"
+        )
+
+    # Filter to allowed keys only
+    updates = {k: v for k, v in data.items() if k in _WRITABLE_CONFIG_KEYS}
+    if not updates:
+        return _error_response(
+            400,
+            "Bad Request",
+            f"No valid fields. Allowed: {sorted(_WRITABLE_CONFIG_KEYS)}",
+        )
+
+    app = _app(request)
+    app.config.update(updates)
+
+    # Persist to disk
+    try:
+        from ..config import write_config
+
+        write_config(app.config)
+    except Exception as e:
+        return _json_response(
+            {
+                "success": True,
+                "message": "Config updated in memory but failed to save to disk",
+                "error": str(e),
+                "updated": list(updates.keys()),
+            }
+        )
+
+    return _json_response(
+        {
+            "success": True,
+            "message": "Configuration updated",
+            "updated": list(updates.keys()),
+        }
+    )
+
+
 def _handle_devices(request: Request) -> Response:
     """Return available audio input devices."""
+    app = _app(request)
+    current_device = app.config.get("audio_device", app.device)
+
     try:
         import sounddevice as sd
 
         devices = sd.query_devices()
+        default_input = sd.default.device[0]
         input_devices = []
         for i, dev in enumerate(devices):
             if dev["max_input_channels"] > 0:
+                is_active = False
+                if current_device is not None:
+                    is_active = str(current_device) == str(i) or str(
+                        current_device
+                    ) == str(dev["name"])
+                elif i == default_input:
+                    is_active = True
+
                 input_devices.append(
                     {
                         "index": i,
                         "name": dev["name"],
                         "channels": dev["max_input_channels"],
                         "sample_rate": dev["default_samplerate"],
-                        "is_default": i == sd.default.device[0],
+                        "is_default": i == default_input,
+                        "is_active": is_active,
                     }
                 )
         return _json_response({"devices": input_devices})
     except Exception as e:
         return _json_response({"devices": [], "error": str(e)})
+
+
+def _handle_set_device(request: Request) -> Response:
+    """Set the active audio input device.
+
+    Accepts JSON body with ``index`` (int) or ``name`` (str) field.
+    """
+    if not request.body:
+        return _error_response(400, "Bad Request", "Request body is required")
+
+    try:
+        data = request.json()
+    except (json.JSONDecodeError, ValueError) as e:
+        return _error_response(400, "Bad Request", f"Invalid JSON: {e}")
+
+    device = data.get("index", data.get("name"))
+    if device is None:
+        return _error_response(400, "Bad Request", "'index' or 'name' is required")
+
+    app = _app(request)
+    app.device = device
+    app.config["audio_device"] = device
+
+    # Persist
+    try:
+        from ..config import write_config
+
+        write_config(app.config)
+    except Exception:
+        pass
+
+    return _json_response(
+        {
+            "success": True,
+            "message": f"Device set to {device}",
+            "device": _format_device(device),
+        }
+    )
+
+
+def _handle_restart_engine(request: Request) -> Response:
+    """Restart the ASR engine with current configuration.
+
+    Hot-reloads the engine by creating a new instance from the current
+    config and replacing the shared engine reference used by the daemon.
+    """
+    app = _app(request)
+
+    if app.engine_ref is None:
+        return _error_response(
+            503,
+            "Unavailable",
+            "Engine hot-reload is not available (no engine reference)",
+        )
+
+    try:
+        from ..engines import create_engine
+
+        new_engine = create_engine(app.config)
+    except Exception as e:
+        return _error_response(500, "Engine Error", f"Failed to create engine: {e}")
+
+    # Test the new engine
+    try:
+        new_engine.test()
+    except Exception as e:
+        return _error_response(500, "Engine Error", f"Engine test failed: {e}")
+
+    # Swap the engine
+    old_name = app.engine_ref[0].name if app.engine_ref[0] else "none"
+    app.engine_ref[0] = new_engine
+
+    return _json_response(
+        {
+            "success": True,
+            "message": "Engine restarted",
+            "old_engine": old_name,
+            "new_engine": new_engine.name,
+        }
+    )
 
 
 def _handle_stats(request: Request) -> Response:
@@ -233,6 +395,9 @@ def setup_routes(app: AdminApp) -> None:
     # Routes
     app.get("/")(_handle_root)
     app.get("/api/status")(_handle_status)
-    app.get("/api/config")(_handle_config)
+    app.get("/api/config")(_handle_get_config)
+    app.post("/api/config")(_handle_update_config)
     app.get("/api/devices")(_handle_devices)
+    app.post("/api/device")(_handle_set_device)
+    app.post("/api/restart-engine")(_handle_restart_engine)
     app.get("/api/stats")(_handle_stats)

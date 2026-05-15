@@ -49,6 +49,7 @@ class RecorderConfig:
     """Configuration for the continuous recorder."""
 
     engine: BaseEngine
+    engine_ref: list | None = None
     device: str | int | None = None
     interval: float = 30.0
     output_file: str | None = None
@@ -131,7 +132,8 @@ def _process_transcription(
     """
     try:
         audio_input = AudioInput.from_file(task.audio_path)
-        result = cfg.engine.transcribe(audio_input)
+        engine = cfg.engine_ref[0] if cfg.engine_ref else cfg.engine
+        result = engine.transcribe(audio_input)
         return (task.sequence, result.text, None, task.duration)
     except TranscriptionError as e:
         return (task.sequence, None, str(e), task.duration)
@@ -334,6 +336,7 @@ def continuous_recording(
     min_transcribe_interval: float = 0.5,
     max_concurrent_transcriptions: int = 3,
     stats: TranscriptionStats | None = None,
+    engine_ref: list | None = None,
 ):
     """Run continuous recording mode with periodic transcription.
 
@@ -353,11 +356,15 @@ def continuous_recording(
         min_transcribe_interval: Minimum interval between transcription triggers (seconds).
         max_concurrent_transcriptions: Maximum number of concurrent transcription requests.
         stats: Optional TranscriptionStats collector for admin panel.
+        engine_ref: Optional mutable list ``[engine]`` shared with admin
+            panel for hot-reloading. When set, transcription uses
+            ``engine_ref[0]`` instead of the initial engine.
     """
     setup_signal_handlers(daemon_mode=True)
 
     cfg = RecorderConfig(
         engine=engine,
+        engine_ref=engine_ref,
         device=device,
         interval=interval,
         output_file=output_file,

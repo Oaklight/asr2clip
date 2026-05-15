@@ -1,272 +1,661 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>asr2clip — Admin Panel</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --bg:#0f1117;--surface:#1a1d27;--border:#2a2d3a;
-  --text:#e4e6eb;--muted:#8b8fa3;--accent:#6c8cff;
-  --green:#4ade80;--yellow:#facc15;--red:#f87171;
-  --radius:10px;--gap:16px;
-}
-body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.6;min-height:100vh}
-a{color:var(--accent);text-decoration:none}
 
-/* Header */
-.header{display:flex;align-items:center;justify-content:space-between;padding:20px 32px;border-bottom:1px solid var(--border)}
-.header h1{font-size:1.4rem;font-weight:600;display:flex;align-items:center;gap:10px}
-.header h1 span{font-size:1.6rem}
-.badge{background:var(--accent);color:#fff;font-size:.7rem;padding:2px 8px;border-radius:12px;font-weight:500}
-.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
+/* ===== Theme Variables ===== */
+[data-theme="light"]{
+  --bg:#f5f6fa;--surface:#ffffff;--border:#e2e4ea;
+  --text:#1a1d2e;--muted:#6b7085;--accent:#4f6ef7;--accent-hover:#3b5ae0;
+  --green:#22c55e;--yellow:#eab308;--red:#ef4444;
+  --shadow:0 1px 3px rgba(0,0,0,.08);
+  --card-shadow:0 2px 8px rgba(0,0,0,.06);
+  --input-bg:#f8f9fb;--input-border:#d1d5de;
+  --tab-bg:#eceef3;--tab-active-bg:#ffffff;
+  --toggle-bg:#e2e4ea;--toggle-hover:#d1d5de;
+}
+[data-theme="dark"]{
+  --bg:#13151c;--surface:#1c1f2b;--border:#2a2e3d;
+  --text:#e0e2ea;--muted:#8b8fa8;--accent:#6c8cff;--accent-hover:#8aa4ff;
+  --green:#4ade80;--yellow:#facc15;--red:#f87171;
+  --shadow:0 1px 3px rgba(0,0,0,.3);
+  --card-shadow:0 2px 8px rgba(0,0,0,.25);
+  --input-bg:#242736;--input-border:#363a4d;
+  --tab-bg:#1c1f2b;--tab-active-bg:#242736;
+  --toggle-bg:#2a2e3d;--toggle-hover:#363a4d;
+}
+
+/* ===== Base ===== */
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.6;min-height:100vh;transition:background .2s,color .2s}
+a{color:var(--accent);text-decoration:none}
+button{cursor:pointer;font-family:inherit}
+
+/* ===== Header ===== */
+.header{display:flex;align-items:center;justify-content:space-between;padding:16px 28px;border-bottom:1px solid var(--border);background:var(--surface)}
+.header-left{display:flex;align-items:center;gap:10px}
+.logo{display:flex;align-items:center;gap:8px}
+.logo svg{width:26px;height:26px;color:var(--accent)}
+.logo h1{font-size:1.2rem;font-weight:600}
+.badge{background:var(--accent);color:#fff;font-size:.65rem;padding:2px 8px;border-radius:10px;font-weight:500;letter-spacing:.02em}
+.header-right{display:flex;align-items:center;gap:8px}
+.icon-btn{display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--toggle-bg);color:var(--text);transition:background .15s}
+.icon-btn:hover{background:var(--toggle-hover)}
+.icon-btn svg{width:18px;height:18px}
+.lang-btn{width:auto;padding:0 10px;font-size:.78rem;font-weight:500;gap:4px}
+
+/* ===== Tab Bar ===== */
+.tab-bar{display:flex;gap:0;padding:0 28px;background:var(--surface);border-bottom:1px solid var(--border)}
+.tab-btn{padding:12px 20px;font-size:.85rem;font-weight:500;color:var(--muted);background:none;border:none;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;display:flex;align-items:center;gap:6px}
+.tab-btn:hover{color:var(--text)}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-btn svg{width:16px;height:16px}
+
+/* ===== Main Content ===== */
+.container{max-width:960px;margin:0 auto;padding:24px 28px}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+
+/* ===== Cards ===== */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 24px;box-shadow:var(--card-shadow);transition:background .2s,border-color .2s}
+.card+.card{margin-top:16px}
+.card-title{font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:12px}
+
+/* ===== Placeholder ===== */
+.placeholder{text-align:center;padding:60px 20px;color:var(--muted);font-size:.95rem}
+
+/* ===== Dashboard Grid ===== */
+.dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:640px){.dash-grid{grid-template-columns:1fr}}
+.dash-full{grid-column:1/-1}
+
+/* Status row */
+.status-row{display:flex;flex-wrap:wrap;gap:16px 24px;font-size:.88rem}
+.status-item{display:flex;align-items:center;gap:6px}
+.status-item .label{color:var(--muted)}
+.status-item .value{font-weight:500}
+.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0}
 .status-dot.ok{background:var(--green)}
 .status-dot.err{background:var(--red)}
-.meta{font-size:.8rem;color:var(--muted)}
 
-/* Layout */
-.container{max-width:1100px;margin:0 auto;padding:24px 32px}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:var(--gap)}
+/* Stat number */
+.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media(max-width:640px){.stat-grid{grid-template-columns:1fr}}
+.stat-box{text-align:center;padding:12px 8px;border-radius:8px;background:var(--input-bg)}
+.stat-num{font-size:1.8rem;font-weight:700;line-height:1.2}
+.stat-num.green{color:var(--green)}
+.stat-num.yellow{color:var(--yellow)}
+.stat-num.red{color:var(--red)}
+.stat-label{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:2px}
 
-/* Cards */
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;transition:border-color .2s}
-.card:hover{border-color:var(--accent)}
-.card-title{font-size:.85rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:12px;display:flex;align-items:center;gap:8px}
-.card-title svg{width:16px;height:16px;opacity:.6}
+/* Last transcription */
+.last-text-box{background:var(--input-bg);border:1px solid var(--input-border);border-radius:8px;padding:14px 16px;font-size:.9rem;min-height:60px;color:var(--text);line-height:1.5;word-break:break-word}
+.last-text-box.empty{color:var(--muted);font-style:italic}
+.last-meta{font-size:.72rem;color:var(--muted);margin-top:8px}
 
-/* Key-value rows */
-.kv{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)}
-.kv:last-child{border-bottom:none}
-.kv-key{color:var(--muted);font-size:.85rem}
-.kv-val{font-weight:500;font-size:.85rem;text-align:right;max-width:60%;word-break:break-all}
+/* ===== Config Form ===== */
+.form-group{margin-bottom:16px}
+.form-label{display:block;font-size:.82rem;font-weight:500;color:var(--muted);margin-bottom:5px}
+.form-hint{font-size:.75rem;color:var(--muted);opacity:.75;margin-top:4px}
+.form-input{width:100%;padding:9px 12px;font-size:.88rem;font-family:inherit;color:var(--text);background:var(--input-bg);border:1px solid var(--input-border);border-radius:8px;outline:none;transition:border-color .15s}
+.form-input:focus{border-color:var(--accent)}
+.input-wrap{position:relative}
+.input-wrap .form-input{padding-right:40px}
+.input-wrap .eye-btn{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);padding:4px;cursor:pointer}
+.input-wrap .eye-btn:hover{color:var(--text)}
+.input-wrap .eye-btn svg{width:16px;height:16px}
 
-/* Stat numbers */
-.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;text-align:center}
-.stat-num{font-size:1.8rem;font-weight:700;color:var(--accent)}
-.stat-label{font-size:.75rem;color:var(--muted);margin-top:2px}
-.stat-num.warn{color:var(--yellow)}
-.stat-num.err{color:var(--red)}
+/* Toggle switch */
+.toggle-row{display:flex;align-items:center;justify-content:space-between}
+.toggle-switch{position:relative;width:44px;height:24px;flex-shrink:0}
+.toggle-switch input{opacity:0;width:0;height:0}
+.toggle-slider{position:absolute;inset:0;background:var(--input-border);border-radius:12px;cursor:pointer;transition:background .2s}
+.toggle-slider::before{content:"";position:absolute;width:18px;height:18px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:transform .2s}
+.toggle-switch input:checked+.toggle-slider{background:var(--accent)}
+.toggle-switch input:checked+.toggle-slider::before{transform:translateX(20px)}
 
-/* Last transcript */
-.transcript-box{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;margin-top:12px;font-size:.85rem;max-height:120px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;color:var(--muted)}
-.transcript-box.has-text{color:var(--text)}
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 20px;font-size:.85rem;font-weight:500;border:none;border-radius:8px;cursor:pointer;transition:background .15s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent-hover)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.btn-restart{background:var(--toggle-bg);color:var(--text);border:1px solid var(--border)}
+.btn-restart:hover{background:var(--toggle-hover)}
+.btn-restart:disabled{opacity:.5;cursor:not-allowed}
+.form-actions{margin-top:20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 
-/* Devices table */
-.dev-table{width:100%;border-collapse:collapse;font-size:.82rem}
-.dev-table th{text-align:left;color:var(--muted);font-weight:500;padding:6px 8px;border-bottom:1px solid var(--border)}
-.dev-table td{padding:6px 8px;border-bottom:1px solid var(--border)}
-.dev-table tr:last-child td{border-bottom:none}
-.dev-table .default-badge{background:var(--green);color:#000;font-size:.65rem;padding:1px 6px;border-radius:8px;font-weight:600;margin-left:6px}
+/* Section label */
+.section-label{font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--accent);border-bottom:1px solid var(--border);padding-bottom:6px;margin:16px 0 12px}
 
-/* Footer */
-.footer{text-align:center;padding:20px;color:var(--muted);font-size:.75rem;border-top:1px solid var(--border);margin-top:32px}
+/* Engine warning */
+.engine-warn{display:flex;align-items:center;gap:6px;margin-top:12px;padding:8px 12px;border-radius:8px;font-size:.82rem;color:var(--yellow);background:color-mix(in srgb, var(--yellow) 8%, var(--surface));border:1px solid color-mix(in srgb, var(--yellow) 20%, var(--border))}
+.engine-warn svg{flex-shrink:0;color:var(--yellow)}
 
-/* Refresh indicator */
-.refresh-bar{height:2px;background:var(--border);position:fixed;top:0;left:0;right:0;z-index:100}
-.refresh-bar .fill{height:100%;background:var(--accent);transition:width 5s linear;width:0}
-.refresh-bar .fill.run{width:100%}
+/* Select styling */
+select.form-input{appearance:auto;cursor:pointer}
 
-@media(max-width:700px){
-  .header{padding:16px}
-  .container{padding:16px}
-  .stat-grid{grid-template-columns:1fr 1fr}
-}
+/* Toast */
+.toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:10px;font-size:.85rem;color:#fff;z-index:999;opacity:0;transform:translateY(10px);transition:opacity .2s,transform .2s;pointer-events:none}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast.success{background:var(--green)}
+.toast.error{background:var(--red)}
+
+/* ===== Device List ===== */
+.device-list{list-style:none;padding:0}
+.device-item{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;transition:background .15s,border-color .15s}
+.device-item.active{border-color:var(--accent);background:color-mix(in srgb, var(--accent) 6%, var(--surface))}
+.device-info{flex:1;min-width:0}
+.device-name{font-size:.9rem;font-weight:500;display:flex;align-items:center;gap:6px}
+.device-name .idx{color:var(--muted);font-size:.78rem;font-weight:400}
+.device-detail{font-size:.75rem;color:var(--muted);margin-top:2px}
+.device-badges{display:flex;gap:4px;margin-left:8px;flex-shrink:0}
+.device-badge{font-size:.65rem;padding:2px 7px;border-radius:6px;font-weight:500}
+.device-badge.default{background:color-mix(in srgb, var(--green) 15%, var(--surface));color:var(--green)}
+.device-badge.current{background:color-mix(in srgb, var(--accent) 15%, var(--surface));color:var(--accent)}
+.btn-sm{padding:5px 12px;font-size:.78rem;border-radius:6px}
+.device-empty{text-align:center;padding:40px 20px;color:var(--muted);font-size:.9rem}
 </style>
 </head>
 <body>
 
-<div class="refresh-bar"><div class="fill" id="refreshFill"></div></div>
-
-<div class="header">
-  <h1>
-    <span>🎙️</span> asr2clip
-    <span class="badge" id="versionBadge">—</span>
-  </h1>
-  <div class="meta">
-    <span class="status-dot ok" id="statusDot"></span>
-    <span id="modeLabel">—</span> · uptime <span id="uptimeLabel">—</span>
+<!-- Header -->
+<header class="header">
+  <div class="header-left">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+        <line x1="12" y1="19" x2="12" y2="23"/>
+        <line x1="8" y1="23" x2="16" y2="23"/>
+      </svg>
+      <h1>asr2clip</h1>
+    </div>
+    <span class="badge" id="version-badge">v-.-.-</span>
   </div>
-</div>
-
-<div class="container">
-  <div class="grid">
-
-    <!-- Status Card -->
-    <div class="card">
-      <div class="card-title">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-        Status
-      </div>
-      <div class="kv"><span class="kv-key">Mode</span><span class="kv-val" id="sMode">—</span></div>
-      <div class="kv"><span class="kv-key">PID</span><span class="kv-val" id="sPid">—</span></div>
-      <div class="kv"><span class="kv-key">Device</span><span class="kv-val" id="sDevice">—</span></div>
-      <div class="kv"><span class="kv-key">Uptime</span><span class="kv-val" id="sUptime">—</span></div>
-    </div>
-
-    <!-- Config Card -->
-    <div class="card">
-      <div class="card-title">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
-        Configuration
-      </div>
-      <div class="kv"><span class="kv-key">API Base URL</span><span class="kv-val" id="cApiUrl">—</span></div>
-      <div class="kv"><span class="kv-key">Model</span><span class="kv-val" id="cModel">—</span></div>
-      <div class="kv"><span class="kv-key">API Key</span><span class="kv-val" id="cApiKey">—</span></div>
-      <div class="kv"><span class="kv-key">Audio Device</span><span class="kv-val" id="cDevice">—</span></div>
-      <div class="kv"><span class="kv-key">Quiet Mode</span><span class="kv-val" id="cQuiet">—</span></div>
-    </div>
-
-    <!-- Stats Card (full width) -->
-    <div class="card" style="grid-column:1/-1">
-      <div class="card-title">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
-        Transcription Statistics
-      </div>
-      <div class="stat-grid">
-        <div>
-          <div class="stat-num" id="tCount">0</div>
-          <div class="stat-label">Transcriptions</div>
-        </div>
-        <div>
-          <div class="stat-num" id="tDuration">0s</div>
-          <div class="stat-label">Total Audio</div>
-        </div>
-        <div>
-          <div class="stat-num err" id="tErrors">0</div>
-          <div class="stat-label">Errors</div>
-        </div>
-      </div>
-      <div class="transcript-box" id="tLastText">No transcriptions yet.</div>
-    </div>
-
-    <!-- Devices Card -->
-    <div class="card" style="grid-column:1/-1">
-      <div class="card-title">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
-        Audio Input Devices
-      </div>
-      <table class="dev-table">
-        <thead><tr><th>#</th><th>Name</th><th>Channels</th><th>Sample Rate</th></tr></thead>
-        <tbody id="devBody"><tr><td colspan="4" style="color:var(--muted)">Loading...</td></tr></tbody>
-      </table>
-    </div>
-
+  <div class="header-right">
+    <button class="icon-btn" id="theme-toggle" title="Toggle theme">
+      <svg id="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+      </svg>
+      <svg id="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+      </svg>
+    </button>
+    <button class="icon-btn lang-btn" id="lang-toggle">EN</button>
   </div>
-</div>
+</header>
 
-<div class="footer">asr2clip admin panel · auto-refresh every 5 s</div>
+<!-- Tab Bar -->
+<nav class="tab-bar">
+  <button class="tab-btn active" data-tab="dashboard">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+    <span data-i18n="tab_dashboard">Dashboard</span>
+  </button>
+  <button class="tab-btn" data-tab="config">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    <span data-i18n="tab_config">Configuration</span>
+  </button>
+  <button class="tab-btn" data-tab="devices">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+    <span data-i18n="tab_devices">Devices</span>
+  </button>
+</nav>
+
+<!-- Tab Panels -->
+<main class="container">
+  <div id="panel-dashboard" class="tab-panel active">
+    <div class="dash-grid">
+      <!-- Status Card -->
+      <div class="card">
+        <div class="card-title" data-i18n="card_status">Status</div>
+        <div class="status-row">
+          <div class="status-item"><span class="status-dot ok" id="status-dot"></span><span class="value" id="status-mode">--</span></div>
+          <div class="status-item"><span class="label">PID:</span><span class="value" id="status-pid">--</span></div>
+          <div class="status-item"><span class="label" data-i18n="lbl_uptime">Uptime:</span><span class="value" id="status-uptime">--</span></div>
+          <div class="status-item"><span class="label" data-i18n="lbl_device">Device:</span><span class="value" id="status-device">--</span></div>
+        </div>
+      </div>
+      <!-- Statistics Card -->
+      <div class="card">
+        <div class="card-title" data-i18n="card_stats">Statistics</div>
+        <div class="stat-grid">
+          <div class="stat-box"><div class="stat-num green" id="stat-count">0</div><div class="stat-label" data-i18n="stat_transcriptions">Transcriptions</div></div>
+          <div class="stat-box"><div class="stat-num yellow" id="stat-duration">0s</div><div class="stat-label" data-i18n="stat_duration">Total Duration</div></div>
+          <div class="stat-box"><div class="stat-num red" id="stat-errors">0</div><div class="stat-label" data-i18n="stat_errors">Errors</div></div>
+        </div>
+      </div>
+      <!-- Last Transcription -->
+      <div class="card dash-full">
+        <div class="card-title" data-i18n="card_last_text">Last Transcription</div>
+        <div class="last-text-box empty" id="last-text" data-i18n="no_transcription">No transcription yet</div>
+        <div class="last-meta" id="last-meta"></div>
+      </div>
+    </div>
+  </div>
+  <div id="panel-config" class="tab-panel">
+    <div class="card">
+      <div class="card-title" data-i18n="card_config">Configuration</div>
+      <!-- Engine selector -->
+      <div class="form-group">
+        <label class="form-label" data-i18n="lbl_engine">Engine</label>
+        <select class="form-input" id="cfg-engine">
+          <option value="openai_compat">OpenAI Compatible</option>
+          <option value="sherpa_onnx">Sherpa ONNX (Local)</option>
+        </select>
+      </div>
+      <!-- OpenAI fields -->
+      <div id="fields-openai">
+        <div class="section-label" data-i18n="engine_openai">OpenAI Compatible</div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="lbl_api_url">API Base URL</label>
+          <input class="form-input" id="cfg-api-url" type="text" placeholder="https://api.openai.com/v1/">
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="lbl_model">Model Name</label>
+          <input class="form-input" id="cfg-model" type="text" placeholder="whisper-1">
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="lbl_api_key">API Key</label>
+          <div class="input-wrap">
+            <input class="form-input" id="cfg-api-key" type="password" placeholder="sk-...">
+            <button class="eye-btn" id="toggle-key-vis" type="button" title="Show/hide">
+              <svg id="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg id="eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      <!-- Sherpa ONNX fields -->
+      <div id="fields-sherpa" style="display:none">
+        <div class="section-label" data-i18n="engine_sherpa">Sherpa ONNX (Local)</div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="lbl_model">Model Name</label>
+          <input class="form-input" id="cfg-sherpa-model" type="text" placeholder="SenseVoiceSmall">
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="lbl_model_dir">Model Directory</label>
+          <input class="form-input" id="cfg-model-dir" type="text" placeholder="~/.cache/sherpa-onnx">
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="lbl_threads">Threads</label>
+          <input class="form-input" id="cfg-threads" type="number" min="1" max="32" value="4">
+        </div>
+      </div>
+      <!-- General -->
+      <div class="section-label" data-i18n="section_general">General</div>
+      <div class="form-group">
+        <div class="toggle-row">
+          <label class="form-label" style="margin-bottom:0" data-i18n="lbl_quiet">Quiet Mode</label>
+          <label class="toggle-switch"><input type="checkbox" id="cfg-quiet"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="form-hint" data-i18n="hint_quiet">Only output transcriptions and errors, suppress all other messages</div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" id="btn-save-config" data-i18n="btn_save">Save</button>
+        <button class="btn btn-restart" id="btn-restart-engine" data-i18n="btn_restart">Restart Engine</button>
+        <span id="save-status" style="font-size:.82rem;color:var(--muted)"></span>
+      </div>
+      <div id="engine-warn" class="engine-warn" style="display:none">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span data-i18n="engine_restart_warn">Engine changed — click "Restart Engine" to apply</span>
+      </div>
+    </div>
+  </div>
+  <div id="panel-devices" class="tab-panel">
+    <div class="card">
+      <div class="card-title" data-i18n="card_devices">Audio Input Devices</div>
+      <div id="device-list" class="device-list">
+        <div class="device-empty" data-i18n="loading">Loading...</div>
+      </div>
+    </div>
+  </div>
+</main>
 
 <script>
-const REFRESH_MS = 5000;
+// ===== i18n =====
+const I18N = {
+  en: {
+    tab_dashboard: "Dashboard",
+    tab_config: "Configuration",
+    tab_devices: "Devices",
+    card_status: "Status",
+    card_stats: "Statistics",
+    card_last_text: "Last Transcription",
+    lbl_uptime: "Uptime:",
+    lbl_device: "Device:",
+    stat_transcriptions: "Transcriptions",
+    stat_duration: "Total Duration",
+    stat_errors: "Errors",
+    no_transcription: "No transcription yet",
+    card_config: "Configuration",
+    lbl_engine: "Engine",
+    engine_openai: "OpenAI Compatible",
+    engine_sherpa: "Sherpa ONNX (Local)",
+    section_general: "General",
+    lbl_api_url: "API Base URL",
+    lbl_model: "Model Name",
+    lbl_api_key: "API Key",
+    lbl_model_dir: "Model Directory",
+    lbl_threads: "Threads",
+    lbl_quiet: "Quiet Mode",
+    hint_quiet: "Only output transcriptions and errors, suppress all other messages",
+    btn_save: "Save",
+    save_ok: "Configuration saved",
+    save_fail: "Failed to save",
+    btn_restart: "Restart Engine",
+    engine_restart_warn: "Engine changed \u2014 click \"Restart Engine\" to apply",
+    restart_ok: "Engine restarted",
+    restart_fail: "Failed to restart engine",
+    restarting: "Restarting...",
+    card_devices: "Audio Input Devices",
+    loading: "Loading...",
+    badge_default: "Default",
+    badge_active: "Active",
+    btn_activate: "Set Active",
+    no_devices: "No audio input devices found",
+    device_set_ok: "Device activated",
+    device_set_fail: "Failed to set device",
+    lbl_channels: "ch",
+    lbl_hz: "Hz",
+  },
+  zh: {
+    tab_dashboard: "\u4eea\u8868\u76d8",
+    tab_config: "\u914d\u7f6e",
+    tab_devices: "\u8bbe\u5907",
+    card_status: "\u72b6\u6001",
+    card_stats: "\u7edf\u8ba1",
+    card_last_text: "\u6700\u8fd1\u8f6c\u5f55",
+    lbl_uptime: "\u8fd0\u884c\u65f6\u95f4:",
+    lbl_device: "\u8bbe\u5907:",
+    stat_transcriptions: "\u8f6c\u5f55\u6b21\u6570",
+    stat_duration: "\u603b\u65f6\u957f",
+    stat_errors: "\u9519\u8bef",
+    no_transcription: "\u6682\u65e0\u8f6c\u5f55",
+    card_config: "\u914d\u7f6e",
+    lbl_engine: "\u5f15\u64ce",
+    engine_openai: "OpenAI \u517c\u5bb9",
+    engine_sherpa: "Sherpa ONNX (\u672c\u5730)",
+    section_general: "\u901a\u7528",
+    lbl_api_url: "API \u57fa\u7840 URL",
+    lbl_model: "\u6a21\u578b\u540d\u79f0",
+    lbl_api_key: "API \u5bc6\u94a5",
+    lbl_model_dir: "\u6a21\u578b\u76ee\u5f55",
+    lbl_threads: "\u7ebf\u7a0b\u6570",
+    lbl_quiet: "\u9759\u97f3\u6a21\u5f0f",
+    hint_quiet: "\u4ec5\u8f93\u51fa\u8f6c\u5f55\u7ed3\u679c\u548c\u9519\u8bef\u4fe1\u606f\uff0c\u9690\u85cf\u5176\u4ed6\u6240\u6709\u6d88\u606f",
+    btn_save: "\u4fdd\u5b58",
+    save_ok: "\u914d\u7f6e\u5df2\u4fdd\u5b58",
+    save_fail: "\u4fdd\u5b58\u5931\u8d25",
+    btn_restart: "\u91cd\u542f\u5f15\u64ce",
+    engine_restart_warn: "\u5f15\u64ce\u5df2\u66f4\u6539 \u2014 \u8bf7\u70b9\u51fb\u201c\u91cd\u542f\u5f15\u64ce\u201d\u4ee5\u5e94\u7528",
+    restart_ok: "\u5f15\u64ce\u5df2\u91cd\u542f",
+    restart_fail: "\u91cd\u542f\u5f15\u64ce\u5931\u8d25",
+    restarting: "\u91cd\u542f\u4e2d...",
+    card_devices: "\u97f3\u9891\u8f93\u5165\u8bbe\u5907",
+    loading: "\u52a0\u8f7d\u4e2d...",
+    badge_default: "\u9ed8\u8ba4",
+    badge_active: "\u5f53\u524d",
+    btn_activate: "\u8bbe\u4e3a\u6d3b\u52a8",
+    no_devices: "\u672a\u627e\u5230\u97f3\u9891\u8f93\u5165\u8bbe\u5907",
+    device_set_ok: "\u8bbe\u5907\u5df2\u6fc0\u6d3b",
+    device_set_fail: "\u8bbe\u7f6e\u8bbe\u5907\u5931\u8d25",
+    lbl_channels: "\u58f0\u9053",
+    lbl_hz: "Hz",
+  }
+};
 
-function fmt_uptime(s) {
-  if (s < 60) return Math.round(s) + 's';
-  if (s < 3600) return Math.floor(s/60) + 'm ' + Math.round(s%60) + 's';
-  const h = Math.floor(s/3600);
-  const m = Math.floor((s%3600)/60);
-  return h + 'h ' + m + 'm';
+let currentLang = localStorage.getItem("asr2clip-lang") || "en";
+let currentTheme = localStorage.getItem("asr2clip-theme") || "light";
+
+function applyTheme(theme) {
+  currentTheme = theme;
+  document.documentElement.setAttribute("data-theme", theme);
+  document.getElementById("icon-sun").style.display = theme === "light" ? "block" : "none";
+  document.getElementById("icon-moon").style.display = theme === "dark" ? "block" : "none";
+  localStorage.setItem("asr2clip-theme", theme);
 }
 
-function fmt_duration(s) {
-  if (s < 60) return s.toFixed(1) + 's';
-  if (s < 3600) return (s/60).toFixed(1) + 'm';
-  return (s/3600).toFixed(1) + 'h';
+function applyLang(lang) {
+  currentLang = lang;
+  const strings = I18N[lang] || I18N.en;
+  document.querySelectorAll("[data-i18n]").forEach(el => {
+    const key = el.getAttribute("data-i18n");
+    if (strings[key]) el.textContent = strings[key];
+  });
+  document.getElementById("lang-toggle").textContent = lang === "en" ? "EN" : "\u4e2d";
+  localStorage.setItem("asr2clip-lang", lang);
 }
 
-async function fetchJSON(url) {
-  try {
-    const r = await fetch(url);
-    return await r.json();
-  } catch(e) {
-    return null;
-  }
+// ===== Tabs =====
+function switchTab(tabName) {
+  document.querySelectorAll(".tab-btn").forEach(btn => btn.classList.toggle("active", btn.dataset.tab === tabName));
+  document.querySelectorAll(".tab-panel").forEach(p => p.classList.toggle("active", p.id === "panel-" + tabName));
 }
 
-async function refresh() {
-  // Status
-  const st = await fetchJSON('/api/status');
-  if (st) {
-    document.getElementById('versionBadge').textContent = 'v' + st.version;
-    document.getElementById('modeLabel').textContent = st.mode;
-    document.getElementById('uptimeLabel').textContent = fmt_uptime(st.uptime);
-    document.getElementById('sMode').textContent = st.mode;
-    document.getElementById('sPid').textContent = st.pid;
-    document.getElementById('sDevice').textContent = st.device;
-    document.getElementById('sUptime').textContent = fmt_uptime(st.uptime);
-    document.getElementById('statusDot').className = 'status-dot ok';
-  } else {
-    document.getElementById('statusDot').className = 'status-dot err';
-  }
+// ===== Init =====
+document.getElementById("theme-toggle").addEventListener("click", () => applyTheme(currentTheme === "light" ? "dark" : "light"));
+document.getElementById("lang-toggle").addEventListener("click", () => applyLang(currentLang === "en" ? "zh" : "en"));
+document.querySelectorAll(".tab-btn").forEach(btn => btn.addEventListener("click", () => switchTab(btn.dataset.tab)));
 
-  // Config
-  const cfg = await fetchJSON('/api/config');
-  if (cfg) {
-    document.getElementById('cApiUrl').textContent = cfg.api_base_url;
-    document.getElementById('cModel').textContent = cfg.model_name;
-    document.getElementById('cApiKey').textContent = cfg.api_key;
-    document.getElementById('cDevice').textContent = cfg.audio_device;
-    document.getElementById('cQuiet').textContent = cfg.quiet ? 'Yes' : 'No';
-  }
+applyTheme(currentTheme);
+applyLang(currentLang);
 
-  // Stats
-  const stats = await fetchJSON('/api/stats');
-  if (stats) {
-    document.getElementById('tCount').textContent = stats.transcription_count;
-    document.getElementById('tDuration').textContent = fmt_duration(stats.total_duration);
-    document.getElementById('tErrors').textContent = stats.error_count;
+// ===== Data Fetching =====
+function formatUptime(s) {
+  if (s < 60) return Math.round(s) + "s";
+  if (s < 3600) return Math.floor(s/60) + "m " + Math.round(s%60) + "s";
+  var h = Math.floor(s/3600); s %= 3600;
+  return h + "h " + Math.floor(s/60) + "m";
+}
 
-    const box = document.getElementById('tLastText');
-    if (stats.last_text) {
-      box.textContent = stats.last_text;
-      box.classList.add('has-text');
+function formatDuration(s) {
+  if (s < 60) return s.toFixed(1) + "s";
+  return (s/60).toFixed(1) + "m";
+}
+
+function timeAgo(ts) {
+  if (!ts) return "";
+  var d = (Date.now()/1000 - ts);
+  if (d < 60) return Math.round(d) + "s ago";
+  if (d < 3600) return Math.floor(d/60) + "m ago";
+  return Math.floor(d/3600) + "h ago";
+}
+
+function refreshDashboard() {
+  fetch("/api/status").then(r=>r.json()).then(d=>{
+    document.getElementById("version-badge").textContent = "v" + (d.version||"?.?.?");
+    document.getElementById("status-mode").textContent = d.mode || "--";
+    document.getElementById("status-pid").textContent = d.pid || "--";
+    document.getElementById("status-uptime").textContent = formatUptime(d.uptime||0);
+    document.getElementById("status-device").textContent = d.device || "--";
+  }).catch(()=>{});
+
+  fetch("/api/stats").then(r=>r.json()).then(d=>{
+    document.getElementById("stat-count").textContent = d.transcription_count || 0;
+    document.getElementById("stat-duration").textContent = formatDuration(d.total_duration||0);
+    document.getElementById("stat-errors").textContent = d.error_count || 0;
+    var el = document.getElementById("last-text");
+    var meta = document.getElementById("last-meta");
+    if (d.last_text) {
+      el.textContent = d.last_text;
+      el.classList.remove("empty");
+      meta.textContent = timeAgo(d.last_timestamp);
     } else {
-      box.textContent = 'No transcriptions yet.';
-      box.classList.remove('has-text');
+      el.textContent = I18N[currentLang].no_transcription;
+      el.classList.add("empty");
+      meta.textContent = "";
     }
-  }
-
-  // Devices (only first load, then every 30s)
-  if (!refresh._devLoaded || (Date.now() - refresh._devTs) > 30000) {
-    const devs = await fetchJSON('/api/devices');
-    if (devs && devs.devices) {
-      const tbody = document.getElementById('devBody');
-      if (devs.devices.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" style="color:var(--muted)">No input devices found</td></tr>';
-      } else {
-        tbody.innerHTML = devs.devices.map(d =>
-          `<tr>
-            <td>${d.index}</td>
-            <td>${d.name}${d.is_default ? '<span class="default-badge">DEFAULT</span>' : ''}</td>
-            <td>${d.channels}</td>
-            <td>${d.sample_rate} Hz</td>
-          </tr>`
-        ).join('');
-      }
-      refresh._devLoaded = true;
-      refresh._devTs = Date.now();
-    }
-  }
+  }).catch(()=>{});
 }
 
-// Refresh bar animation
-function startRefreshCycle() {
-  const fill = document.getElementById('refreshFill');
-  fill.style.transition = 'none';
-  fill.style.width = '0';
-  // Force reflow
-  void fill.offsetWidth;
-  fill.style.transition = `width ${REFRESH_MS}ms linear`;
-  fill.classList.add('run');
-  fill.style.width = '100%';
+refreshDashboard();
+setInterval(refreshDashboard, 3000);
+
+// ===== Toast =====
+function showToast(msg, type) {
+  var t = document.getElementById("toast");
+  if (!t) { t = document.createElement("div"); t.id="toast"; t.className="toast"; document.body.appendChild(t); }
+  t.textContent = msg;
+  t.className = "toast " + type + " show";
+  setTimeout(function(){ t.classList.remove("show"); }, 2500);
 }
 
-refresh();
-startRefreshCycle();
-setInterval(() => {
-  refresh();
-  startRefreshCycle();
-}, REFRESH_MS);
+// ===== Config =====
+var keyVisible = false;
+var initialEngine = "openai_compat";
+
+document.getElementById("toggle-key-vis").addEventListener("click", function() {
+  keyVisible = !keyVisible;
+  document.getElementById("cfg-api-key").type = keyVisible ? "text" : "password";
+  document.getElementById("eye-open").style.display = keyVisible ? "none" : "block";
+  document.getElementById("eye-closed").style.display = keyVisible ? "block" : "none";
+});
+
+function toggleEngineFields(engine) {
+  document.getElementById("fields-openai").style.display = engine === "openai_compat" ? "block" : "none";
+  document.getElementById("fields-sherpa").style.display = engine === "sherpa_onnx" ? "block" : "none";
+  document.getElementById("engine-warn").style.display = (engine !== initialEngine) ? "flex" : "none";
+}
+
+document.getElementById("cfg-engine").addEventListener("change", function() {
+  toggleEngineFields(this.value);
+});
+
+function loadConfig() {
+  fetch("/api/config").then(r=>r.json()).then(d=>{
+    var engine = d.engine || "openai_compat";
+    initialEngine = engine;
+    document.getElementById("cfg-engine").value = engine;
+    toggleEngineFields(engine);
+    // OpenAI fields
+    document.getElementById("cfg-api-url").value = d.api_base_url || "";
+    document.getElementById("cfg-model").value = d.model_name || "";
+    document.getElementById("cfg-api-key").value = d.api_key || "";
+    document.getElementById("cfg-api-key").placeholder = d.api_key ? d.api_key : "sk-...";
+    // Sherpa fields
+    document.getElementById("cfg-sherpa-model").value = (engine === "sherpa_onnx" ? d.model_name : "") || "";
+    document.getElementById("cfg-model-dir").value = d.model_dir || "";
+    document.getElementById("cfg-threads").value = d.num_threads || 4;
+    // General
+    document.getElementById("cfg-quiet").checked = !!d.quiet;
+  }).catch(()=>{});
+}
+
+document.getElementById("btn-save-config").addEventListener("click", function() {
+  var btn = this;
+  btn.disabled = true;
+  var engine = document.getElementById("cfg-engine").value;
+  var body = { engine: engine, quiet: document.getElementById("cfg-quiet").checked };
+
+  if (engine === "openai_compat") {
+    var url = document.getElementById("cfg-api-url").value.trim();
+    var model = document.getElementById("cfg-model").value.trim();
+    var key = document.getElementById("cfg-api-key").value.trim();
+    if (url) body.api_base_url = url;
+    if (model) body.model_name = model;
+    if (key && !key.includes("*")) body.api_key = key;
+  } else {
+    var smodel = document.getElementById("cfg-sherpa-model").value.trim();
+    var mdir = document.getElementById("cfg-model-dir").value.trim();
+    var threads = parseInt(document.getElementById("cfg-threads").value) || 4;
+    if (smodel) body.model_name = smodel;
+    if (mdir) body.model_dir = mdir;
+    body.num_threads = threads;
+  }
+
+  fetch("/api/config", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(body)
+  }).then(r=>r.json()).then(d=>{
+    if (d.success) {
+      showToast(I18N[currentLang].save_ok, "success");
+      loadConfig();
+    } else {
+      showToast(d.message || I18N[currentLang].save_fail, "error");
+    }
+  }).catch(()=>{
+    showToast(I18N[currentLang].save_fail, "error");
+  }).finally(()=>{ btn.disabled = false; });
+});
+
+loadConfig();
+
+// ===== Restart Engine =====
+document.getElementById("btn-restart-engine").addEventListener("click", function() {
+  var btn = this;
+  var lang = I18N[currentLang];
+  btn.disabled = true;
+  btn.textContent = lang.restarting;
+  fetch("/api/restart-engine", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: "{}"
+  }).then(r=>r.json()).then(d=>{
+    if (d.success) {
+      showToast(lang.restart_ok + " (" + d.new_engine + ")", "success");
+    } else {
+      showToast(d.message || lang.restart_fail, "error");
+    }
+  }).catch(()=>{
+    showToast(lang.restart_fail, "error");
+  }).finally(()=>{
+    btn.disabled = false;
+    btn.textContent = lang.btn_restart;
+  });
+});
+
+// ===== Devices =====
+function loadDevices() {
+  var lang = I18N[currentLang];
+  fetch("/api/devices").then(r=>r.json()).then(d=>{
+    var list = document.getElementById("device-list");
+    if (!d.devices || d.devices.length === 0) {
+      list.innerHTML = '<div class="device-empty">' + (lang.no_devices) + '</div>';
+      return;
+    }
+    var html = "";
+    d.devices.forEach(function(dev) {
+      var cls = dev.is_active ? " active" : "";
+      var badges = "";
+      if (dev.is_default) badges += '<span class="device-badge default">' + lang.badge_default + '</span>';
+      if (dev.is_active) badges += '<span class="device-badge current">' + lang.badge_active + '</span>';
+      var btn = dev.is_active ? "" : '<button class="btn btn-primary btn-sm" onclick="setDevice(' + dev.index + ')">' + lang.btn_activate + '</button>';
+      html += '<div class="device-item' + cls + '">'
+        + '<div class="device-info"><div class="device-name"><span class="idx">#' + dev.index + '</span> ' + dev.name + '</div>'
+        + '<div class="device-detail">' + dev.channels + ' ' + lang.lbl_channels + ' &middot; ' + dev.sample_rate + ' ' + lang.lbl_hz + '</div></div>'
+        + '<div class="device-badges">' + badges + '</div>'
+        + btn
+        + '</div>';
+    });
+    list.innerHTML = html;
+  }).catch(function(){
+    document.getElementById("device-list").innerHTML = '<div class="device-empty">' + lang.no_devices + '</div>';
+  });
+}
+
+window.setDevice = function(idx) {
+  var lang = I18N[currentLang];
+  fetch("/api/device", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({index: idx})
+  }).then(r=>r.json()).then(d=>{
+    if (d.success) {
+      showToast(lang.device_set_ok, "success");
+      loadDevices();
+    } else {
+      showToast(d.message || lang.device_set_fail, "error");
+    }
+  }).catch(function(){
+    showToast(lang.device_set_fail, "error");
+  });
+};
+
+loadDevices();
 </script>
 </body>
 </html>

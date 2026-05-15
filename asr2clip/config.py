@@ -210,6 +210,29 @@ def get_api_config(config: dict) -> tuple[str, str, str, str | None]:
     return api_key, api_base_url, model_name, org_id
 
 
+def write_config(config: dict, config_file: str | None = None) -> str:
+    """Write configuration dictionary to a YAML file.
+
+    Args:
+        config: Configuration dictionary to write.
+        config_file: Path to write to. If None, uses the first found
+            existing config path or DEFAULT_CONFIG_PATH.
+
+    Returns:
+        The path the config was written to.
+    """
+    config_path = find_config_path(config_file) or DEFAULT_CONFIG_PATH
+
+    config_dir = os.path.dirname(config_path)
+    if config_dir:
+        os.makedirs(config_dir, exist_ok=True)
+
+    with open(config_path, "w") as f:
+        f.write(yaml.dump(config))
+
+    return config_path
+
+
 def get_audio_device(config: dict, cli_device: str | None = None) -> str | int | None:
     """Get audio device from config or CLI argument.
 
