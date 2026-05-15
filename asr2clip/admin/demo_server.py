@@ -3,7 +3,24 @@
 import argparse
 import time
 
+from ..engines.base import BaseEngine, TranscriptionResult
 from .server import AdminServer, TranscriptionStats
+
+
+class _MockEngine(BaseEngine):
+    """Dummy engine that returns canned text for demo/testing."""
+
+    def transcribe(self, audio, language=None):
+        return TranscriptionResult(
+            text="(demo) mock transcription result", duration=3.0
+        )
+
+    def test(self):
+        return True
+
+    @property
+    def name(self):
+        return "mock-demo"
 
 
 def main():
@@ -33,6 +50,8 @@ def main():
     )
 
     info = server.start()
+    engine_ref = [_MockEngine()]
+    server.set_engine_ref(engine_ref)
     print(f"Admin panel running at: {info.url}")
 
     try:
