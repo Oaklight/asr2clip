@@ -18,6 +18,7 @@ All notable changes to asr2clip are documented here.
 
 ### Changed
 
+- Update vendored `httpclient` module from 0.3.1 to 0.4.1 (zerodep)
 - **Zero external dependencies** — replaced PyYAML with a vendored YAML parser and httpx/requests with a vendored HTTP client; core install now pulls only numpy, sounddevice, pydub, and copykitten
 - **Clipboard library** — replaced pyperclip with [copykitten](https://github.com/koenvervloesem/copykitten) (Rust-based, no external tools like xclip/wl-clipboard needed)
 - **Wayland clipboard** — on Wayland sessions, prefers `wl-copy` for proper clipboard manager integration (e.g. KDE Klipper); falls back to copykitten on X11 or when wl-copy is unavailable
