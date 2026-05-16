@@ -43,7 +43,7 @@ asr2clip uses an engine abstraction (`engines/base.py`) for ASR backends. To add
 4. Add any new dependencies as optional extras in `pyproject.toml`
 5. Submit a PR
 
-See `engines/openai_compat.py` and `engines/sherpa_onnx.py` for reference implementations.
+See `engines/openai_compat.py`, `engines/sherpa_onnx.py`, and `engines/whisper_cpp.py` for reference implementations.
 
 ## AI-Assisted Contributions
 
