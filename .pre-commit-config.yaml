@@ -8,7 +8,7 @@ repos:
         args: [--fix]
       - id: ruff-format
 
-  # ── Local hooks (ty, complexipy) ─────────────────────────────────
+  # ── Local hooks (ty) ─────────────────────────────────────────────
   # These require dev dependencies on PATH.
   # Activate your project virtualenv / conda env before committing.
   - repo: local
@@ -21,9 +21,10 @@ repos:
         pass_filenames: false
         always_run: true
 
+  - repo: https://github.com/rohaquinlop/complexipy-pre-commit
+    rev: v5.1.0
+    hooks:
       - id: complexipy
-        name: complexipy (complexity check)
-        entry: complexipy asr2clip/ -e _vendor
-        language: system
-        pass_filenames: false
-        always_run: true
+        files: ^asr2clip/
+        exclude: ^asr2clip/_vendor/
+        args: [-mx, "20"]
