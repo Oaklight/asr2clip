@@ -23,14 +23,5 @@ jobs:
       - name: Install dev dependencies
         run: pip install -e ".[dev,local_asr]"
 
-      - name: Ruff check
-        run: ruff check asr2clip/
-
-      - name: Ruff format check
-        run: ruff format --check asr2clip/
-
-      - name: Type check (ty)
-        run: ty check
-
-      - name: Complexity check (complexipy)
-        run: complexipy asr2clip/ -e "_vendor"
+      - name: Run pre-commit checks
+        uses: pre-commit/action@v3.0.1

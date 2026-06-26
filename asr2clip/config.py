@@ -127,15 +127,16 @@ def open_in_editor(config_file: str | None = None):
         print(f"Created new config file: {config_path}")
 
     # Determine which editor to use
-    editors_to_try = []
-    if os.getenv("EDITOR"):
-        editors_to_try.append(os.getenv("EDITOR"))
+    editors_to_try: list[str] = []
+    if editor := os.getenv("EDITOR"):
+        editors_to_try.append(editor)
 
     if os.name == "nt":  # Windows
         editors_to_try.append("notepad")
     else:  # Unix-like
         editors_to_try.extend(["nano", "vi", "vim"])
 
+    assert config_path is not None  # narrowed above: either found or set to default
     for editor in editors_to_try:
         try:
             subprocess.run([editor, config_path], check=True)
