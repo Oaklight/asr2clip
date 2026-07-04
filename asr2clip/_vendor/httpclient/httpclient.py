@@ -1,9 +1,9 @@
 # /// zerodep
-# version = "0.3.1"
+# version = "0.4.4"
 # deps = []
 # tier = "subsystem"
 # category = "network"
-# note = "Install/update via `zerodep add httpclient`"
+# note = "Install/update via: https://zerodep.readthedocs.io/en/latest/guide/cli/"
 # ///
 
 """Zero-dependency sync + async HTTP REST client.
@@ -44,7 +44,9 @@ import http.client
 import json as _json
 import logging
 import os
+import socket
 import ssl
+import struct
 import threading
 import time
 import warnings
@@ -66,6 +68,9 @@ __all__ = [
     "TooManyRedirects",
     "HttpConnectionError",
     "HttpTimeoutError",
+    "Socks5Error",
+    # Data structures
+    "CaseInsensitiveDict",
     # Response classes
     "Response",
     "StreamingResponse",
@@ -103,6 +108,145 @@ DEFAULT_MAX_REDIRECTS = 10
 DEFAULT_USER_AGENT = "zerodep-http/0.1"
 DEFAULT_POOL_SIZE = 10
 DEFAULT_POOL_IDLE_TIMEOUT = 60.0
+
+
+# ── CaseInsensitiveDict ──
+
+
+class CaseInsensitiveDict(dict):
+    """Case-insensitive key lookup ``dict`` subclass that preserves original casing.
+
+    Provides case-insensitive HTTP header storage: ``d["Content-Type"]``
+    and ``d["content-type"]`` resolve to the same slot, but iteration and
+    wire serialisation yield the original casing the caller supplied.
+
+    Internally the underlying ``dict`` stores ``{lowercase_key: value}``
+    for O(1) lookups, while a parallel ``_keys`` mapping records
+    ``{lowercase_key: original_key}`` for casing-preserving iteration.
+
+    This is the type used for ``Response.headers``,
+    ``StreamingResponse.headers``, and the internal ``req_headers`` dict
+    that flows through ``_prepare_request``.  HTTP header names are
+    case-insensitive per :rfc:`7230` \u00a73.2, but the wire format and
+    echo tests expect the casing the caller supplied.
+
+    It is a ``dict`` subclass, so it is accepted everywhere a ``dict``
+    is expected.  Equality is case-insensitive on keys:
+    ``CaseInsensitiveDict({"X-Foo": "bar"}) == {"x-foo": "bar"}``.
+    """
+
+    # Parallel store: lowercase_key → original_key supplied by the caller.
+    # Kept in sync with the underlying dict at all times.
+    _keys: dict[str, str]
+
+    def __init__(
+        self,
+        data: dict | list[tuple[str, str]] | None = None,
+        **kwargs: str,
+    ) -> None:
+        super().__init__()
+        self._keys = {}
+        if data is not None:
+            self.update(data)
+        if kwargs:
+            self.update(kwargs)
+
+    # ------------------------------------------------------------------ #
+    # Core write operations — all funnel through __setitem__ / __delitem__
+    # ------------------------------------------------------------------ #
+
+    def __setitem__(self, key: str, value: str) -> None:  # type: ignore[override]
+        lower = key.lower()
+        self._keys[lower] = key  # preserve (or update) original casing
+        super().__setitem__(lower, value)
+
+    def __delitem__(self, key: str) -> None:
+        lower = key.lower()
+        self._keys.pop(lower, None)
+        super().__delitem__(lower)
+
+    # ------------------------------------------------------------------ #
+    # Read operations — normalise lookup key to lowercase
+    # ------------------------------------------------------------------ #
+
+    def __getitem__(self, key: str) -> str:  # type: ignore[override]
+        return super().__getitem__(key.lower())  # type: ignore[return-value]
+
+    def __contains__(self, key: object) -> bool:
+        return super().__contains__(key.lower() if isinstance(key, str) else key)
+
+    def get(self, key: str, default: str | None = None) -> str | None:  # type: ignore[override]
+        return super().get(key.lower(), default)  # type: ignore[return-value]
+
+    def pop(self, key: str, *args: str) -> str:  # type: ignore[override]
+        lower = key.lower()
+        self._keys.pop(lower, None)
+        return super().pop(lower, *args)  # type: ignore[return-value]
+
+    def setdefault(self, key: str, default: str = "") -> str:  # type: ignore[override]
+        if key.lower() not in self:
+            self[key] = default
+        return self[key]
+
+    def update(  # type: ignore[override]
+        self,
+        data: dict | list[tuple[str, str]] | None = None,
+        **kwargs: str,
+    ) -> None:
+        if data is not None:
+            items = data.items() if hasattr(data, "items") else data
+            for k, v in items:
+                self[k] = v
+        for k, v in kwargs.items():
+            self[k] = v
+
+    # ------------------------------------------------------------------ #
+    # Iteration — yield original casing so wire format is preserved
+    # ------------------------------------------------------------------ #
+
+    def __iter__(self):  # type: ignore[override]
+        for lower in super().__iter__():
+            yield self._keys.get(lower, lower)
+
+    def keys(self):  # type: ignore[override]
+        return list(self.__iter__())
+
+    def values(self):  # type: ignore[override]
+        return list(super().values())
+
+    def items(self):  # type: ignore[override]
+        """Yield ``(original_key, value)`` pairs; preserves casing on the wire."""
+        for lower, value in super().items():
+            yield self._keys.get(lower, lower), value
+
+    # ------------------------------------------------------------------ #
+    # Equality — case-insensitive on keys
+    # ------------------------------------------------------------------ #
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, dict):
+            return NotImplemented
+        if len(self) != len(other):
+            return False
+        # Use our case-insensitive .get() so "X-Foo" == "x-foo" for key lookups
+        return all(self.get(k) == v for k, v in other.items())
+
+    def __hash__(self) -> None:  # type: ignore[override]
+        return None  # dicts are unhashable; satisfy type checkers
+
+    # ------------------------------------------------------------------ #
+    # Miscellaneous
+    # ------------------------------------------------------------------ #
+
+    def copy(self) -> "CaseInsensitiveDict":
+        return CaseInsensitiveDict(self.items())
+
+    def __reduce__(self):  # type: ignore[override]
+        """Ensure pickle/copy reconstructs via __init__ to restore _keys."""
+        return (type(self), (list(self.items()),))
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({dict(self.items())!r})"
 
 
 # ── Exceptions ──
@@ -168,6 +312,10 @@ ConnectionError = HttpConnectionError  # noqa: A001
 TimeoutError = HttpTimeoutError  # noqa: A001
 
 
+class Socks5Error(HttpConnectionError):
+    """Raised on SOCKS5 proxy handshake failures."""
+
+
 # ── Data Models (Response) ──
 
 
@@ -186,7 +334,7 @@ class Response:
     def __init__(
         self,
         status_code: int,
-        headers: dict[str, str],
+        headers: CaseInsensitiveDict,
         content: bytes,
         url: str,
     ) -> None:
@@ -248,7 +396,7 @@ class Response:
         return f"<Response [{self.status_code}]>"
 
 
-def _guess_encoding_from_headers(headers: dict[str, str]) -> str:
+def _guess_encoding_from_headers(headers: CaseInsensitiveDict) -> str:
     """Extract charset from Content-Type header, default utf-8."""
     ct = headers.get("content-type", "")
     for part in ct.split(";"):
@@ -467,7 +615,7 @@ class StreamingResponse:
     )
 
     status_code: int
-    headers: dict[str, str]
+    headers: CaseInsensitiveDict
     url: str
     _encoding: str
     _decompressor: zlib._Decompress | None
@@ -488,7 +636,7 @@ class StreamingResponse:
     def _from_sync(
         cls,
         status_code: int,
-        headers: dict[str, str],
+        headers: CaseInsensitiveDict,
         url: str,
         resp: http.client.HTTPResponse,
         conn: http.client.HTTPConnection,
@@ -517,7 +665,7 @@ class StreamingResponse:
     def _from_async(
         cls,
         status_code: int,
-        headers: dict[str, str],
+        headers: CaseInsensitiveDict,
         url: str,
         reader: asyncio.StreamReader,
         writer: asyncio.StreamWriter,
@@ -1013,7 +1161,9 @@ def _parse_proxy(proxy: str) -> tuple[str, int, str | None, str | None]:
     """
     parsed = urlparse(proxy)
     hostname = parsed.hostname or ""
-    port = parsed.port or 8080
+    scheme = (parsed.scheme or "").lower()
+    default_port = 1080 if scheme.startswith("socks") else 8080
+    port = parsed.port or default_port
     username = parsed.username or None
     password = parsed.password or None
     return hostname, port, username, password
@@ -1031,6 +1181,205 @@ def _proxy_auth_header(username: str, password: str) -> str:
     """
     credentials = f"{username}:{password}".encode()
     return "Basic " + base64.b64encode(credentials).decode()
+
+
+# -- SOCKS5 helpers --
+
+_SOCKS5_VER = 0x05
+_SOCKS5_AUTH_VER = 0x01
+_SOCKS5_CMD_CONNECT = 0x01
+_SOCKS5_ATYPE_IPV4 = 0x01
+_SOCKS5_ATYPE_DOMAIN = 0x03
+_SOCKS5_ATYPE_IPV6 = 0x04
+_SOCKS5_METHOD_NO_AUTH = 0x00
+_SOCKS5_METHOD_USERPASS = 0x02
+_SOCKS5_METHOD_NO_ACCEPTABLE = 0xFF
+
+_SOCKS5_ERRORS: dict[int, str] = {
+    0x01: "general SOCKS server failure",
+    0x02: "connection not allowed by ruleset",
+    0x03: "network unreachable",
+    0x04: "host unreachable",
+    0x05: "connection refused by destination",
+    0x06: "TTL expired",
+    0x07: "command not supported",
+    0x08: "address type not supported",
+}
+
+
+def _is_socks_proxy(proxy: str | None) -> bool:
+    """Return True if proxy URL uses the socks5:// scheme."""
+    return proxy is not None and proxy.lower().startswith("socks5://")
+
+
+def _socks5_recv_exact(sock: socket.socket, n: int) -> bytes:
+    """Read exactly *n* bytes from *sock*, raising on premature close."""
+    data = b""
+    while len(data) < n:
+        chunk = sock.recv(n - len(data))
+        if not chunk:
+            raise Socks5Error("SOCKS5 proxy closed connection unexpectedly")
+        data += chunk
+    return data
+
+
+def _socks5_handshake_sync(
+    sock: socket.socket,
+    host: str,
+    port: int,
+    username: str | None = None,
+    password: str | None = None,
+) -> None:
+    """Perform the SOCKS5 handshake (RFC 1928 + RFC 1929) over *sock*."""
+    # Phase 1: method negotiation
+    if username and password:
+        sock.sendall(
+            struct.pack("BBB", _SOCKS5_VER, 2, _SOCKS5_METHOD_NO_AUTH)
+            + struct.pack("B", _SOCKS5_METHOD_USERPASS)
+        )
+    else:
+        sock.sendall(struct.pack("BBB", _SOCKS5_VER, 1, _SOCKS5_METHOD_NO_AUTH))
+
+    ver, method = struct.unpack("BB", _socks5_recv_exact(sock, 2))
+    if ver != _SOCKS5_VER:
+        raise Socks5Error(f"Unexpected SOCKS version: {ver}")
+    if method == _SOCKS5_METHOD_NO_ACCEPTABLE:
+        raise Socks5Error("SOCKS5 proxy: no acceptable authentication method")
+
+    # Phase 2: username/password auth (RFC 1929)
+    if method == _SOCKS5_METHOD_USERPASS:
+        if not username or not password:
+            raise Socks5Error(
+                "SOCKS5 proxy requires authentication but no credentials provided"
+            )
+        uname = username.encode()
+        passwd = password.encode()
+        sock.sendall(
+            struct.pack("BB", _SOCKS5_AUTH_VER, len(uname))
+            + uname
+            + struct.pack("B", len(passwd))
+            + passwd
+        )
+        auth_ver, status = struct.unpack("BB", _socks5_recv_exact(sock, 2))
+        if status != 0x00:
+            raise Socks5Error("SOCKS5 authentication failed")
+
+    # Phase 3: connect request
+    host_bytes = host.encode()
+    if len(host_bytes) > 255:
+        raise Socks5Error(f"SOCKS5 target hostname too long: {len(host_bytes)} bytes")
+    sock.sendall(
+        struct.pack(
+            "BBBB", _SOCKS5_VER, _SOCKS5_CMD_CONNECT, 0x00, _SOCKS5_ATYPE_DOMAIN
+        )
+        + struct.pack("B", len(host_bytes))
+        + host_bytes
+        + struct.pack("!H", port)
+    )
+
+    # Parse reply
+    ver, reply, _rsv, atype = struct.unpack("BBBB", _socks5_recv_exact(sock, 4))
+    if reply != 0x00:
+        msg = _SOCKS5_ERRORS.get(reply, f"unknown error 0x{reply:02x}")
+        raise Socks5Error(f"SOCKS5 connect failed: {msg}")
+
+    # Consume bind address
+    if atype == _SOCKS5_ATYPE_IPV4:
+        _socks5_recv_exact(sock, 4)
+    elif atype == _SOCKS5_ATYPE_IPV6:
+        _socks5_recv_exact(sock, 16)
+    elif atype == _SOCKS5_ATYPE_DOMAIN:
+        addr_len = struct.unpack("B", _socks5_recv_exact(sock, 1))[0]
+        _socks5_recv_exact(sock, addr_len)
+    # Consume bind port
+    _socks5_recv_exact(sock, 2)
+
+
+async def _socks5_handshake_async(
+    reader: asyncio.StreamReader,
+    writer: asyncio.StreamWriter,
+    host: str,
+    port: int,
+    timeout: float,
+    username: str | None = None,
+    password: str | None = None,
+) -> None:
+    """Perform the SOCKS5 handshake (RFC 1928 + RFC 1929) asynchronously."""
+    try:
+        # Phase 1: method negotiation
+        if username and password:
+            writer.write(
+                struct.pack("BBB", _SOCKS5_VER, 2, _SOCKS5_METHOD_NO_AUTH)
+                + struct.pack("B", _SOCKS5_METHOD_USERPASS)
+            )
+        else:
+            writer.write(struct.pack("BBB", _SOCKS5_VER, 1, _SOCKS5_METHOD_NO_AUTH))
+        await asyncio.wait_for(writer.drain(), timeout=timeout)
+
+        data = await asyncio.wait_for(reader.readexactly(2), timeout=timeout)
+        ver, method = struct.unpack("BB", data)
+        if ver != _SOCKS5_VER:
+            raise Socks5Error(f"Unexpected SOCKS version: {ver}")
+        if method == _SOCKS5_METHOD_NO_ACCEPTABLE:
+            raise Socks5Error("SOCKS5 proxy: no acceptable authentication method")
+
+        # Phase 2: username/password auth (RFC 1929)
+        if method == _SOCKS5_METHOD_USERPASS:
+            if not username or not password:
+                raise Socks5Error(
+                    "SOCKS5 proxy requires authentication but no credentials provided"
+                )
+            uname = username.encode()
+            passwd = password.encode()
+            writer.write(
+                struct.pack("BB", _SOCKS5_AUTH_VER, len(uname))
+                + uname
+                + struct.pack("B", len(passwd))
+                + passwd
+            )
+            await asyncio.wait_for(writer.drain(), timeout=timeout)
+            data = await asyncio.wait_for(reader.readexactly(2), timeout=timeout)
+            _auth_ver, status = struct.unpack("BB", data)
+            if status != 0x00:
+                raise Socks5Error("SOCKS5 authentication failed")
+
+        # Phase 3: connect request
+        host_bytes = host.encode()
+        if len(host_bytes) > 255:
+            raise Socks5Error(
+                f"SOCKS5 target hostname too long: {len(host_bytes)} bytes"
+            )
+        writer.write(
+            struct.pack(
+                "BBBB", _SOCKS5_VER, _SOCKS5_CMD_CONNECT, 0x00, _SOCKS5_ATYPE_DOMAIN
+            )
+            + struct.pack("B", len(host_bytes))
+            + host_bytes
+            + struct.pack("!H", port)
+        )
+        await asyncio.wait_for(writer.drain(), timeout=timeout)
+
+        # Parse reply
+        data = await asyncio.wait_for(reader.readexactly(4), timeout=timeout)
+        ver, reply, _rsv, atype = struct.unpack("BBBB", data)
+        if reply != 0x00:
+            msg = _SOCKS5_ERRORS.get(reply, f"unknown error 0x{reply:02x}")
+            raise Socks5Error(f"SOCKS5 connect failed: {msg}")
+
+        # Consume bind address
+        if atype == _SOCKS5_ATYPE_IPV4:
+            await asyncio.wait_for(reader.readexactly(4), timeout=timeout)
+        elif atype == _SOCKS5_ATYPE_IPV6:
+            await asyncio.wait_for(reader.readexactly(16), timeout=timeout)
+        elif atype == _SOCKS5_ATYPE_DOMAIN:
+            data = await asyncio.wait_for(reader.readexactly(1), timeout=timeout)
+            addr_len = struct.unpack("B", data)[0]
+            await asyncio.wait_for(reader.readexactly(addr_len), timeout=timeout)
+        # Consume bind port
+        await asyncio.wait_for(reader.readexactly(2), timeout=timeout)
+
+    except asyncio.IncompleteReadError as exc:
+        raise Socks5Error("SOCKS5 proxy closed connection unexpectedly") from exc
 
 
 # -- URL helpers --
@@ -1062,6 +1411,30 @@ def _parse_url(url: str) -> tuple[str, str, int, str, bool]:
 # -- Shared request preparation helpers --
 
 
+def _headers_set_default(
+    req_headers: CaseInsensitiveDict, key: str, value: str
+) -> None:
+    """Set *key*/*value* only when the key is not already present.
+
+    With ``CaseInsensitiveDict``, ``setdefault`` already handles case
+    normalisation.  This thin wrapper keeps the call-site readable.
+    """
+    req_headers.setdefault(key, value)
+
+
+def _headers_merge_user(
+    req_headers: CaseInsensitiveDict, user_headers: dict[str, str] | None
+) -> None:
+    """Merge *user_headers* into *req_headers*; user values always win.
+
+    With ``CaseInsensitiveDict``, ``update`` handles case-insensitive
+    collision automatically — setting ``user-agent`` overwrites
+    ``User-Agent`` in the same slot.
+    """
+    if user_headers:
+        req_headers.update(user_headers)
+
+
 def _prepare_request(
     method: str,
     url: str,
@@ -1071,10 +1444,19 @@ def _prepare_request(
     files: dict[str, Any] | list[tuple[str, Any]] | None,
     params: dict[str, Any] | None,
     auth: tuple[str, str] | Auth | None,
-) -> tuple[str, bytes | None, dict[str, str], Auth | None]:
+) -> tuple[str, bytes | None, CaseInsensitiveDict, Auth | None]:
     """Build URL, encode body, assemble headers, and normalize auth.
 
     Shared by _sync_request and _async_request (Phases 1-3).
+
+    Header precedence (highest → lowest):
+      1. auth headers (digest/basic — must override everything)
+      2. user-supplied *headers*
+      3. body-derived defaults (Content-Type, Content-Length)
+      4. library defaults (User-Agent, Accept-Encoding)
+
+    All keys are normalised to lowercase via :class:`CaseInsensitiveDict`;
+    no duplicate header names are ever emitted.
 
     Returns:
         (final_url, body_bytes, request_headers, auth_object).
@@ -1082,19 +1464,25 @@ def _prepare_request(
     url = _build_url(url, params)
     body, content_type = _prepare_body(data, json_data, files)
 
-    req_headers: dict[str, str] = {
-        "User-Agent": DEFAULT_USER_AGENT,
-        "Accept-Encoding": "gzip, deflate",
-    }
+    req_headers: CaseInsensitiveDict = CaseInsensitiveDict()
+
+    # Library defaults — only applied when the user hasn't already set them
+    _headers_set_default(req_headers, "User-Agent", DEFAULT_USER_AGENT)
+    _headers_set_default(req_headers, "Accept-Encoding", "gzip, deflate")
+
+    # Body-derived headers — set as defaults so user can override
     if content_type:
-        req_headers["Content-Type"] = content_type
+        _headers_set_default(req_headers, "Content-Type", content_type)
     if body is not None:
-        req_headers["Content-Length"] = str(len(body))
-    req_headers.update(headers or {})
+        _headers_set_default(req_headers, "Content-Length", str(len(body)))
+
+    # User headers win over all of the above
+    _headers_merge_user(req_headers, headers)
 
     auth_obj = _normalize_auth(auth)
     if isinstance(auth_obj, BasicAuth):
-        req_headers.update(auth_obj.auth_headers(method, url))
+        # Auth headers have highest priority — always override
+        _headers_merge_user(req_headers, auth_obj.auth_headers(method, url))
 
     return url, body, req_headers, auth_obj
 
@@ -1222,6 +1610,40 @@ def _sync_connect_via_proxy(
     return conn, path
 
 
+def _sync_connect_via_socks5(
+    host: str,
+    port: int,
+    path: str,
+    is_https: bool,
+    timeout: float,
+    verify: bool,
+    proxy: str,
+) -> tuple[http.client.HTTPConnection, str]:
+    """Establish a sync connection through a SOCKS5 proxy.
+
+    Creates a SOCKS5 tunnel to the target, optionally wrapping with TLS.
+
+    Returns:
+        (connection, request_path).
+    """
+    proxy_host, proxy_port, proxy_user, proxy_pass = _parse_proxy(proxy)
+    sock = socket.create_connection((proxy_host, proxy_port), timeout=timeout)
+    try:
+        _socks5_handshake_sync(sock, host, port, proxy_user, proxy_pass)
+    except Exception:
+        sock.close()
+        raise
+
+    if is_https:
+        ctx = _make_ssl_context(verify)
+        sock = ctx.wrap_socket(sock, server_hostname=host)
+        conn = http.client.HTTPSConnection(host, port, timeout=timeout, context=ctx)
+    else:
+        conn = http.client.HTTPConnection(host, port, timeout=timeout)
+    conn.sock = sock
+    return conn, path
+
+
 def _sync_acquire_connection(
     host: str,
     port: int,
@@ -1240,6 +1662,10 @@ def _sync_acquire_connection(
         (connection, request_path).
     """
     if proxy:
+        if _is_socks_proxy(proxy):
+            return _sync_connect_via_socks5(
+                host, port, path, is_https, timeout, verify, proxy
+            )
         return _sync_connect_via_proxy(
             host, port, path, is_https, timeout, verify, proxy, req_headers, url
         )
@@ -1405,7 +1831,7 @@ def _sync_request(
             try:
                 conn.request(method, request_path, body=body, headers=req_headers)
                 resp = conn.getresponse()
-                resp_headers = {k.lower(): v for k, v in resp.getheaders()}
+                resp_headers = CaseInsensitiveDict(resp.getheaders())
                 status = resp.status
 
                 if _is_redirect(status, resp_headers):
@@ -1472,7 +1898,7 @@ def _sync_request(
 async def _async_read_response_headers(
     reader: asyncio.StreamReader,
     timeout: float,
-) -> tuple[int, dict[str, str]]:
+) -> tuple[int, CaseInsensitiveDict]:
     """Read HTTP status line and headers from an asyncio StreamReader.
 
     Does NOT consume the body -- the reader is left positioned at the
@@ -1490,7 +1916,7 @@ async def _async_read_response_headers(
     status_code = int(parts[1])
 
     # Headers until empty line
-    headers: dict[str, str] = {}
+    headers: CaseInsensitiveDict = CaseInsensitiveDict()
     while True:
         line = await asyncio.wait_for(reader.readline(), timeout=timeout)
         decoded = line.decode("latin-1").rstrip("\r\n")
@@ -1498,7 +1924,7 @@ async def _async_read_response_headers(
             break
         if ":" in decoded:
             k, v = decoded.split(":", 1)
-            headers[k.strip().lower()] = v.strip()
+            headers[k.strip()] = v.strip()
 
     return status_code, headers
 
@@ -1624,6 +2050,48 @@ async def _async_connect_via_proxy_tunnel(
     return proxy_reader, proxy_writer
 
 
+async def _async_connect_via_socks5(
+    host: str,
+    port: int,
+    timeout: float,
+    verify: bool,
+    is_https: bool,
+    proxy: str,
+) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
+    """Open a SOCKS5 tunnel and optionally upgrade to TLS.
+
+    Returns:
+        (reader, writer) with TLS already established if target is HTTPS.
+    """
+    proxy_host, proxy_port, proxy_user, proxy_pass = _parse_proxy(proxy)
+    reader, writer = await asyncio.wait_for(
+        asyncio.open_connection(proxy_host, proxy_port),
+        timeout=timeout,
+    )
+    try:
+        await _socks5_handshake_async(
+            reader, writer, host, port, timeout, proxy_user, proxy_pass
+        )
+    except Exception:
+        writer.close()
+        try:
+            await writer.wait_closed()
+        except Exception:
+            pass
+        raise
+
+    if is_https:
+        ctx = _make_ssl_context(verify)
+        loop = asyncio.get_event_loop()
+        transport = writer.transport
+        new_transport = await loop.start_tls(
+            transport, transport.get_protocol(), ctx, server_hostname=host
+        )
+        writer._transport = new_transport  # type: ignore[attr-defined]
+
+    return reader, writer
+
+
 async def _async_acquire_connection(
     host: str,
     port: int,
@@ -1645,6 +2113,11 @@ async def _async_acquire_connection(
     """
     try:
         if proxy:
+            if _is_socks_proxy(proxy):
+                reader, writer = await _async_connect_via_socks5(
+                    host, port, timeout, verify, is_https, proxy
+                )
+                return reader, writer, path
             if not is_https:
                 proxy_host, proxy_port, proxy_user, proxy_pass = _parse_proxy(proxy)
                 reader, writer = await asyncio.wait_for(
@@ -1708,10 +2181,12 @@ def _build_raw_http_request(
         Encoded HTTP/1.1 request bytes (without body).
     """
     request_line = f"{method} {request_path} HTTP/1.1\r\n"
-    header_lines = f"Host: {host}\r\n"
+    # Emit Host first (RFC 7230 §5.4). req_headers is a CaseInsensitiveDict
+    # so the 'in' check is O(1) and case-insensitive.
+    header_lines = "" if "host" in req_headers else f"Host: {host}\r\n"
     for k, v in req_headers.items():
         header_lines += f"{k}: {v}\r\n"
-    if not use_pool or use_proxy:
+    if (not use_pool or use_proxy) and "connection" not in req_headers:
         header_lines += "Connection: close\r\n"
     header_lines += "\r\n"
     return (request_line + header_lines).encode("latin-1")
@@ -1937,7 +2412,8 @@ def _prepare_body(
 
     Priority: json > files > data.
     When files is provided and data is a dict, data fields are included
-    as text parts in the multipart body.
+    as text parts in the multipart body. When data is a dict without files,
+    it is URL-encoded as application/x-www-form-urlencoded.
 
     Returns:
         (body_bytes, content_type) tuple.
@@ -1947,6 +2423,8 @@ def _prepare_body(
     if files is not None:
         form_data = data if isinstance(data, dict) else None
         return _encode_multipart(form_data, files)
+    if isinstance(data, dict):
+        return urlencode(data).encode("utf-8"), "application/x-www-form-urlencoded"
     if isinstance(data, str):
         return data.encode("utf-8"), "application/x-www-form-urlencoded"
     if isinstance(data, bytes):
@@ -2050,13 +2528,13 @@ def _encode_multipart(
 def _merge_headers(
     base: dict[str, str] | None,
     extra: dict[str, str] | None,
-) -> dict[str, str]:
-    """Merge header dicts (case-insensitive merge, last wins)."""
-    merged: dict[str, str] = {}
-    for h in (base, extra):
-        if h:
-            for k, v in h.items():
-                merged[k] = v
+) -> CaseInsensitiveDict:
+    """Merge header dicts into a :class:`CaseInsensitiveDict`; *extra* wins."""
+    merged = CaseInsensitiveDict()
+    if base:
+        merged.update(base)
+    if extra:
+        merged.update(extra)
     return merged
 
 
@@ -2144,7 +2622,8 @@ async def async_options(url: str, **kwargs: Any) -> Response | StreamingResponse
 class Client:
     """Synchronous HTTP client session with connection pooling.
 
-    Thread-safe: uses a threading.Lock internally.
+    Thread-safe: the underlying connection pool uses its own
+    ``threading.Lock`` to protect shared state.
 
     Usage::
 
@@ -2170,7 +2649,6 @@ class Client:
         self._auth = auth
         self._proxy = proxy
         self._pool = _SyncConnectionPool(pool_size)
-        self._lock = threading.Lock()
 
     def request(
         self,
@@ -2186,10 +2664,7 @@ class Client:
         kwargs.setdefault("proxy", self._proxy)
         kwargs["_pool"] = self._pool
         kwargs["headers"] = _merge_headers(self._base_headers, kwargs.get("headers"))
-        if kwargs.get("stream"):
-            return _sync_request(method, url, **kwargs)
-        with self._lock:
-            return _sync_request(method, url, **kwargs)
+        return _sync_request(method, url, **kwargs)
 
     def get(self, url: str, **kwargs: Any) -> Response | StreamingResponse:
         return self.request("GET", url, **kwargs)
@@ -2216,6 +2691,13 @@ class Client:
         """Close all pooled connections."""
         self._pool.close_all()
 
+    # Async-style alias so callers can use the same name for both clients
+    # in generic code (``await client.aclose()`` works for AsyncClient;
+    # ``client.aclose()`` works here as a plain synchronous no-op wrapper).
+    async def aclose(self) -> None:  # type: ignore[misc]
+        """Async-compatible alias for :meth:`close` (parity with AsyncClient)."""
+        self.close()
+
     def __enter__(self) -> Client:
         return self
 
@@ -2226,8 +2708,8 @@ class Client:
 class AsyncClient:
     """Asynchronous HTTP client session with connection pooling.
 
-    Safe to use from a single asyncio task; for concurrent requests
-    from the same client, use asyncio.Lock internally.
+    Safe for concurrent use from multiple asyncio tasks.  The underlying
+    connection pool uses its own ``asyncio.Lock`` to protect shared state.
 
     Usage::
 
@@ -2253,7 +2735,6 @@ class AsyncClient:
         self._auth = auth
         self._proxy = proxy
         self._pool = _AsyncConnectionPool(pool_size)
-        self._lock = asyncio.Lock()
 
     async def request(
         self,
@@ -2269,10 +2750,7 @@ class AsyncClient:
         kwargs.setdefault("proxy", self._proxy)
         kwargs["_pool"] = self._pool
         kwargs["headers"] = _merge_headers(self._base_headers, kwargs.get("headers"))
-        if kwargs.get("stream"):
-            return await _async_request(method, url, **kwargs)
-        async with self._lock:
-            return await _async_request(method, url, **kwargs)
+        return await _async_request(method, url, **kwargs)
 
     async def get(self, url: str, **kwargs: Any) -> Response | StreamingResponse:
         return await self.request("GET", url, **kwargs)
@@ -2298,6 +2776,21 @@ class AsyncClient:
     async def aclose(self) -> None:
         """Close all pooled connections."""
         await self._pool.close_all()
+
+    # Sync-style alias for interface parity with Client.
+    def close(self) -> None:
+        """Emit a warning and do nothing — use ``await aclose()`` instead.
+
+        ``AsyncClient`` manages async resources; calling synchronous ``close()``
+        cannot safely await the pool teardown coroutine.  This method exists
+        solely for interface parity with :class:`Client` so that type-annotated
+        code that calls ``client.close()`` does not raise ``AttributeError``.
+        Always prefer :meth:`aclose` inside async code.
+        """
+        logger.warning(
+            "AsyncClient.close() is a no-op — use 'await client.aclose()' "
+            "to properly close async connections."
+        )
 
     async def __aenter__(self) -> AsyncClient:
         return self
