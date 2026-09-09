@@ -83,3 +83,6 @@ exclude = ["asr2clip/_vendor"]
 paths = ["asr2clip"]
 exclude = ["_vendor"]
 max-complexity-allowed = 15
+
+[tool.zerodep]
+vendor-dir = "asr2clip/_vendor"
