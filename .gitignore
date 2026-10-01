@@ -178,3 +178,9 @@ docs_zh/
 asr2clip.conf
 # all audio/video files
 data/
+
+# IDE and AI agent related
+.vscode/
+.claude/
+AGENTS.md
+CLAUDE.md

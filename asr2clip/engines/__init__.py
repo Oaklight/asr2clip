@@ -4,6 +4,7 @@ Provides a unified interface for different ASR backends:
 
 - :class:`OpenAICompatEngine` — any OpenAI-compatible API (cloud or local server)
 - :class:`SherpaOnnxEngine` — local inference via sherpa-onnx (lazy import)
+- :class:`WhisperCppEngine` — local inference via whisper.cpp CLI (lazy import)
 
 Use :func:`create_engine` to create an engine from a configuration dict.
 """
@@ -30,6 +31,7 @@ def create_engine(config: dict, **kwargs) -> BaseEngine:
     The engine type is determined by the ``engine`` field in config:
     - Not set or ``"openai_compat"``: :class:`OpenAICompatEngine`
     - ``"sherpa_onnx"``: :class:`SherpaOnnxEngine` (lazy-imported)
+    - ``"whisper_cpp"``: :class:`WhisperCppEngine` (lazy-imported)
 
     When ``engine`` is not set, behavior is fully backward-compatible
     with existing config files that only specify ``api_base_url``,
@@ -66,8 +68,18 @@ def create_engine(config: dict, **kwargs) -> BaseEngine:
             model_dir=config.get("model_dir"),
             num_threads=config.get("num_threads", 4),
         )
+    elif engine_type == "whisper_cpp":
+        from .whisper_cpp import WhisperCppEngine
+
+        return WhisperCppEngine(
+            binary=config["binary"],
+            model=config["model"],
+            vad_model=config.get("vad_model"),
+            num_threads=config.get("num_threads", 4),
+            timeout_multiplier=config.get("timeout_multiplier", 5.0),
+        )
     else:
         raise ValueError(
             f"Unknown engine type: {engine_type!r}. "
-            f"Supported: 'openai_compat', 'sherpa_onnx'"
+            f"Supported: 'openai_compat', 'sherpa_onnx', 'whisper_cpp'"
         )

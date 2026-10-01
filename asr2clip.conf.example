@@ -16,3 +16,10 @@ model_name: "whisper-1"                     # or other compatible model
 # api_base_url: "https://api.siliconflow.com/v1/"  # or other compatible API base URL
 # api_key: "YOUR_API_KEY"                          # api key for the platform
 # model_name: "FunAudioLLM/SenseVoiceSmall"
+
+# Local whisper.cpp (no API key required)
+# engine: whisper_cpp
+# binary: ~/whisper.cpp/build/bin/whisper-cli
+# model: ~/whisper.cpp/models/ggml-small.en.bin
+# vad_model: ~/whisper.cpp/models/ggml-silero-v6.2.0.bin  # optional
+# num_threads: 4
